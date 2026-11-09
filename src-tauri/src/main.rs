@@ -1518,8 +1518,8 @@ fn main() {
         .setup(move |app| {
             if minimized {
                 let window = app.get_webview_window("main").ok_or("Main window not available")?;
-                window.minimize()?;
                 window.show()?;
+                window.minimize()?;
             }
             Ok(())
         })
