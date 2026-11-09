@@ -1177,6 +1177,29 @@ fn copy_png(png_base64: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn import_clipboard_image() -> Result<String, String> {
+    let mut clipboard = arboard::Clipboard::new()
+        .map_err(|error| format!("Could not open the clipboard: {error}"))?;
+    let image = clipboard.get_image()
+        .map_err(|error| format!("Could not read a clipboard image. Copy image pixels in your editor first: {error}"))?;
+    clipboard_image_png(image)
+}
+
+fn clipboard_image_png(image: arboard::ImageData<'_>) -> Result<String, String> {
+    let width = u32::try_from(image.width).map_err(|_| "Clipboard image width is too large.")?;
+    let height = u32::try_from(image.height).map_err(|_| "Clipboard image height is too large.")?;
+    if width == 0 || height == 0 {
+        return Err("Clipboard image dimensions must be nonzero.".into());
+    }
+    let rgba = image::RgbaImage::from_raw(width, height, image.bytes.into_owned())
+        .ok_or("Clipboard image pixel data does not match its dimensions.")?;
+    let mut png = Cursor::new(Vec::new());
+    DynamicImage::ImageRgba8(rgba).write_to(&mut png, ImageFormat::Png)
+        .map_err(|error| format!("Clipboard image PNG encoding failed: {error}"))?;
+    Ok(format!("data:image/png;base64,{}", STANDARD.encode(png.into_inner())))
+}
+
+#[tauri::command]
 fn texture_rgb_preview(png_base64: String) -> Result<String, String> {
     let bytes = STANDARD.decode(
         png_base64.strip_prefix("data:image/png;base64,").unwrap_or(&png_base64)
@@ -1553,6 +1576,7 @@ fn main() {
             delete_custom_skin,
             save_png,
             copy_png,
+            import_clipboard_image,
             import_image,
             texture_rgb_preview,
             texture_has_alpha,
@@ -1628,6 +1652,23 @@ mod tests {
                 let file = output.join(format!("{}__seq_{sequence}.json", path.replace('/', "__")));
                 fs::write(file, serde_json::to_vec(&detail).unwrap()).unwrap();
             }
+        }
+    }
+
+    #[test]
+    fn clipboard_image_conversion_preserves_rgba_and_dimensions() {
+        let pixels = vec![210, 100, 30, 0, 40, 50, 60, 32, 90, 80, 70, 255, 1, 2, 3, 128];
+        let png = clipboard_image_png(arboard::ImageData {
+            width: 2, height: 2, bytes: std::borrow::Cow::Borrowed(&pixels),
+        }).unwrap();
+        let bytes = STANDARD.decode(png.strip_prefix("data:image/png;base64,").unwrap()).unwrap();
+        let decoded = image::load_from_memory_with_format(&bytes, ImageFormat::Png).unwrap().to_rgba8();
+        assert_eq!(decoded.dimensions(), (2, 2));
+        assert_eq!(decoded.into_raw(), pixels);
+        for (width, height, data) in [(0, 1, vec![]), (2, 2, vec![0; 3]), (usize::MAX, 1, vec![])] {
+            assert!(clipboard_image_png(arboard::ImageData {
+                width, height, bytes: std::borrow::Cow::Owned(data),
+            }).is_err());
         }
     }
 

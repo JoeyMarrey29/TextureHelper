@@ -333,7 +333,9 @@ with sync_playwright() as playwright:
         page.route(ORIGIN + "**", serve)
         page.add_init_script("""
           window.draftMock = {
-            failSave: false, installed: new Set(), calls: [], exports: [], copies: [], failCopy: false, updateChecks: 0, updateAvailable: null, failUpdateCheck: false,
+            failSave: false, installed: new Set(), calls: [], exports: [], copies: [], failCopy: false,
+            clipboardImage: null, deferClipboard: false, imageExports: [], cancelImageSave: false,
+            updateChecks: 0, updateAvailable: null, failUpdateCheck: false,
             saved: new Map(Object.entries(JSON.parse(localStorage.getItem('mockDrafts') || '{}')))
           };
           window.__TAURI__ = {core: {invoke: async (command, args) => {
@@ -341,6 +343,15 @@ with sync_playwright() as playwright:
             if (command === 'copy_png') {
               if (mock.failCopy) throw Error('Clipboard busy');
               mock.copies.push(args.pngBase64); return;
+            }
+            if (command === 'import_clipboard_image') {
+              if (mock.deferClipboard) return new Promise(resolve => { mock.resolveClipboard = resolve; });
+              if (!mock.clipboardImage) throw Error('Clipboard contains no image pixels');
+              return mock.clipboardImage;
+            }
+            if (command === 'save_png' || command === 'save_dds') {
+              mock.imageExports.push({command, ...args});
+              return mock.cancelImageSave ? null : 'texture.' + (command === 'save_dds' ? 'dds' : 'png');
             }
             if (command === 'check_update') {
               mock.updateChecks++;
@@ -483,6 +494,38 @@ with sync_playwright() as playwright:
         page.wait_for_function("document.getElementById('toast').textContent.includes('Clipboard busy')")
         assert page.locator("#toast").get_attribute("class") == "toast error"
         page.evaluate("draftMock.failCopy = false")
+        assert page.locator("#copy-png").inner_text() == "Copy PNG to clipboard"
+        assert page.locator("#copy-overlay").inner_text() == "Copy UV overlay to clipboard"
+        assert page.locator("#download-overlay").inner_text() == "Export UV overlay"
+        assert page.locator("#export-png, #export-dds").count() == 0
+        for format_name, command in (("png", "save_png"), ("dds", "save_dds")):
+            page.locator("#export-image").click()
+            page.locator("#export-format").select_option(format_name)
+            page.locator("#export-dialog button[value=export]").click()
+            page.wait_for_function("command => draftMock.imageExports.at(-1)?.command === command", arg=command)
+            assert page.evaluate("draftMock.imageExports.at(-1).pngBase64") == original
+        page.locator("#export-image").click()
+        page.locator("#export-dialog button[value=cancel]").click()
+        assert page.evaluate("draftMock.imageExports.length") == 2
+        page.evaluate("draftMock.cancelImageSave = true")
+        page.locator("#export-image").click()
+        page.locator("#export-dialog button[value=export]").click()
+        page.wait_for_function("draftMock.imageExports.length === 3")
+        page.evaluate("draftMock.cancelImageSave = false")
+        page.locator("#download-overlay").click()
+        page.wait_for_function("draftMock.imageExports.length === 4")
+        assert page.evaluate("draftMock.imageExports.at(-1).command") == "save_png"
+        assert page.evaluate("draftMock.imageExports.at(-1).name.endsWith('_uv_overlay')")
+        page.locator("#import-clipboard").click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('no image pixels')")
+        assert page.evaluate("draftMock.saved.size") == 0
+        page.evaluate("""() => {
+          const canvas = document.createElement('canvas'); canvas.width = canvas.height = 2;
+          draftMock.clipboardImage = canvas.toDataURL();
+        }""")
+        page.locator("#import-clipboard").click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('Image must be 4')")
+        assert page.evaluate("previewTest.draftState().edits.length") == 0
         page.locator("#show-alpha").uncheck()
         page.locator("#show-uv").check()
         print("PASS: RGB panel/swatches reveal masked color; alpha toggle and 3D source retain original alpha")
@@ -555,6 +598,7 @@ with sync_playwright() as playwright:
         assert page.locator(".material-item").count() == 1
         assert page.locator("#texture-select option").count() > 1
         page.evaluate("previewTest.setupPicking()")
+        assert page.locator("#viewport").evaluate("element => getComputedStyle(element).cursor") == "default"
         stock_path = "models/perpheads/weapons/attachments/stock_ak101.mdl"
         point = page.evaluate("path => previewTest.meshPoint(path)", stock_path)
         rotation = page.evaluate("previewTest.rotation()")
@@ -573,7 +617,9 @@ with sync_playwright() as playwright:
         page.mouse.move(point["x"], point["y"])
         page.mouse.down(button="right")
         page.mouse.move(point["x"] + 45, point["y"] + 30)
+        assert page.locator("#viewport").evaluate("element => getComputedStyle(element).cursor") == "grabbing"
         page.mouse.up(button="right")
+        assert page.locator("#viewport").evaluate("element => getComputedStyle(element).cursor") == "default"
         assert page.evaluate("previewTest.rotation()") != rotation
         assert page.evaluate("previewTest.highlightedMeshes()") == highlighted
         rotation = page.evaluate("previewTest.rotation()")
@@ -621,6 +667,19 @@ with sync_playwright() as playwright:
           previewTest.draftState().edits.some(edit => edit.key === item.key)).every(item => item.source)""")
         assert {item["source"] for item in page.evaluate("previewTest.textureEdits()")
                 if item["key"] in {edit["key"] for edit in state["edits"]}} == {png}
+        clipboard_png = page.evaluate("draftMock.clipboardImage = previewTest.uploadAlphaPng()")
+        page.locator("#import-clipboard").click()
+        page.wait_for_function("png => [...draftMock.saved.values()][0]?.textures.every(texture => texture.png === png)", arg=clipboard_png)
+        state = page.evaluate("previewTest.draftState()")
+        assert len(state["edits"]) == 2 and all(edit["png"] == clipboard_png for edit in state["edits"])
+        page.wait_for_function("""png => previewTest.textureEdits().filter(item =>
+          previewTest.draftState().edits.some(edit => edit.key === item.key)).every(item => item.source === png)""", arg=clipboard_png)
+        assert page.evaluate("draftMock.exports.length") == 0
+        page.set_viewport_size({"width": 1000, "height": 950})
+        assert page.locator(".inspector").evaluate("element => element.scrollWidth <= element.clientWidth")
+        for selector in ("#copy-png", "#copy-overlay", "#import-clipboard"):
+            assert page.locator(selector).evaluate("element => element.scrollWidth <= element.clientWidth")
+        page.set_viewport_size({"width": 1500, "height": 950})
         if args.screenshot:
             page.evaluate("previewTest.setView('front')")
             page.wait_for_timeout(500)
@@ -630,7 +689,15 @@ with sync_playwright() as playwright:
         page.evaluate("previewTest.resetEdits()")
         print("PASS: one shared VTF entry, two independent colored UV layers, scoped highlights, and shared import/draft pixels")
 
+        page.evaluate("draftMock.deferClipboard = true")
+        page.locator("#import-clipboard").click()
+        page.wait_for_function("typeof draftMock.resolveClipboard === 'function'")
         page.evaluate("previewTest.open('models/perpheads/weapons/c_m4a1.mdl')")
+        page.evaluate("png => { draftMock.deferClipboard = false; draftMock.resolveClipboard(png); }", clipboard_png)
+        page.wait_for_function("document.getElementById('toast').textContent.includes('model changed during import')")
+        assert page.evaluate("previewTest.draftState().edits.length") == 0
+        assert page.evaluate("draftMock.saved.size") == 0
+        print("PASS: export format popup/cancellation, clipboard import alpha/shared drafts, dimension/no-image/race errors and narrow layout")
         flip_paths = [data["attachments"][name]["model"] for name in ("flip_front", "flip_rear")]
         for sight, expected in (("", "idle"), ("eotech", "idle_down"), ("reddot", "idle_down"), ("", "idle")):
             page.evaluate("name => previewTest.setSlotAttachment('SLOT_SIGHT', name)", sight)

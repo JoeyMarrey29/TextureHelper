@@ -1015,17 +1015,19 @@ async function savePng(name, dataUrl) {
   try { const saved = await invoke('save_png', {name, pngBase64: dataUrl}); if (saved) toast(`Saved PNG: ${saved}`); }
   catch (error) { toast(String(error), true); }
 }
-$('export-png').addEventListener('click', () => {
+$('export-image').addEventListener('click', async () => {
   const material = activeMaterial(); if (!material) return;
   const image = importedPng || material.image;
   if (!image) { toast('This material has no decoded texture to export.', true); return; }
-  savePng(material.name.split('/').pop(), image);
-});
-$('export-dds').addEventListener('click', async () => {
-  const material = activeMaterial(); if (!material) return;
-  const image = importedPng || material.image;
-  if (!image) { toast('This material has no decoded texture to export.', true); return; }
-  try { const saved = await invoke('save_dds', {name: material.name.split('/').pop(), pngBase64: image}); if (saved) toast(`Saved DDS: ${saved}`); }
+  const dialog = $('export-dialog');
+  dialog.returnValue = 'cancel';
+  const choice = await new Promise(resolve => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue), {once: true});
+    dialog.showModal();
+  });
+  if (choice !== 'export') return;
+  const format = $('export-format').value;
+  try { const saved = await invoke(format === 'dds' ? 'save_dds' : 'save_png', {name: material.name.split('/').pop(), pngBase64: image}); if (saved) toast(`Saved ${format.toUpperCase()}: ${saved}`); }
   catch (error) { toast(String(error), true); }
 });
 function uvOverlayPng(material) {
@@ -1051,14 +1053,14 @@ $('copy-overlay').addEventListener('click', () => {
   const material = activeMaterial(); if (!material) return;
   copyImage(uvOverlayPng(material), 'UV overlay');
 });
-$('png-input').addEventListener('change', async event => {
-  const file = event.target.files[0], material = activeMaterial(); if (!file || !material) return;
-  const partPath = activePartPath, selectedKey = skinKey(material), serial = selectionSerial, layers = activeTextureLayers();
+async function importTexture(loadImage) {
+  const material = activeMaterial();
+  if (!material) { toast('Select a texture before importing an image.', true); return; }
+  const partPath = activePartPath, selectedKey = skinKey(material), serial = selectionSerial, loadout = loadoutSerial, layers = activeTextureLayers();
   try {
-    const raw = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
-    const dataUrl = file.name.toLowerCase().endsWith('.dds') ? await invoke('import_image', {dataBase64: raw}) : raw;
+    const dataUrl = await loadImage();
     const img = new Image(); img.src = dataUrl; await img.decode();
-    if (serial !== selectionSerial) throw new Error('The model changed during import. Import the texture again on the intended model.');
+    if (serial !== selectionSerial || loadout !== loadoutSerial) throw new Error('The model changed during import. Import the texture again on the intended model.');
     if (material.width && (img.width !== material.width || img.height !== material.height)) throw new Error(`Image must be ${material.width} × ${material.height} to match this VTF.`);
     for (const layer of layers) {
       const key = skinKey(layer.material);
@@ -1076,7 +1078,17 @@ $('png-input').addEventListener('change', async event => {
     renderMaterials();
     await saveDraft();
   } catch (error) { toast(String(error), true); }
-  event.target.value = '';
+}
+$('png-input').addEventListener('change', async event => {
+  const input = event.target, file = input.files[0]; if (!file) return;
+  await importTexture(async () => {
+    const raw = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(reader.error || new Error('Could not read the image file.')); reader.readAsDataURL(file); });
+    return file.name.toLowerCase().endsWith('.dds') ? invoke('import_image', {dataBase64: raw}) : raw;
+  });
+  input.value = '';
+});
+$('import-clipboard').addEventListener('click', () => {
+  importTexture(() => invoke('import_clipboard_image'));
 });
 let skinInstallPending = false;
 async function runSkinInstall(action) {

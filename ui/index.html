@@ -44,9 +44,10 @@
           <label class="switch" title="Source can use alpha for shader masks rather than transparency. This affects only this preview; exports keep the original alpha."><input type="checkbox" id="show-alpha"><span>Show texture alpha (RGB shown by default)</span></label>
           <label class="switch"><input type="checkbox" id="show-uv" checked><span>Show mesh UV triangles</span></label>
           <div id="uv-layers" class="uv-layers" aria-label="Texture UV overlays"></div>
-          <div class="button-row"><button id="export-png" class="button secondary">Export PNG</button><button id="export-dds" class="button secondary">Export DDS</button><button id="download-overlay" class="button secondary">Save UV overlay</button></div>
-          <div class="button-row clipboard-buttons"><button id="copy-png" class="button secondary">Copy PNG</button><button id="copy-overlay" class="button secondary">Copy UV overlay</button></div>
+          <div class="button-row"><button id="export-image" class="button secondary">Export texture</button><button id="download-overlay" class="button secondary">Export UV overlay</button></div>
+          <div class="button-row clipboard-buttons"><button id="copy-png" class="button secondary">Copy PNG to clipboard</button><button id="copy-overlay" class="button secondary">Copy UV overlay to clipboard</button></div>
           <label class="button primary upload wide">Import edited PNG or DDS<input type="file" id="png-input" accept="image/png,image/vnd-ms.dds,.dds" hidden></label>
+          <button id="import-clipboard" class="button secondary wide">Import from clipboard</button>
           <p id="import-note" class="note">Import a PNG with the same dimensions to preview it on the model. First-person skins install using PERPHEADS' phcustomtextures method.</p>
           <button id="export-vtf" class="button primary wide" disabled>Install custom skin</button>
           <button id="install-all" class="button secondary wide" disabled>Install all edited textures</button>
@@ -60,6 +61,13 @@
       </aside>
     </main>
     <div id="toast" class="toast hidden" role="status"></div>
+    <dialog id="export-dialog" aria-labelledby="export-dialog-title">
+      <form method="dialog">
+        <h2 id="export-dialog-title">Export texture</h2>
+        <label class="export-format">Image format<select id="export-format"><option value="png">PNG image (.png)</option><option value="dds">DDS image (.dds)</option></select></label>
+        <div class="button-row"><button value="cancel" class="button secondary">Cancel</button><button value="export" class="button primary">Choose save location</button></div>
+      </form>
+    </dialog>
     <dialog id="alpha-dialog" aria-labelledby="alpha-dialog-title">
       <form method="dialog">
         <h2 id="alpha-dialog-title">Keep this texture's alpha channel?</h2>
