@@ -61,39 +61,6 @@ pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
             if let Err(error) = app.emit("update-progress", (downloaded, total)) {
                 eprintln!("Could not report update progress: {error}");
             }
-
-            #[cfg(test)]
-            mod tests {
-                use super::*;
-
-                #[test]
-                #[ignore = "Downloads the published GitHub release; never runs the installer"]
-                fn published_release_signature_and_version_are_verified() {
-                    let config: serde_json::Value = serde_json::from_str(include_str!("..\\tauri.conf.json")).unwrap();
-                    let mut context = tauri::test::mock_context(tauri::test::noop_assets());
-                    context.config_mut().plugins.0.insert("updater".into(), config["plugins"]["updater"].clone());
-                    let app = tauri::test::mock_builder()
-                        .plugin(tauri_plugin_updater::Builder::new().build())
-                        .build(context).unwrap();
-                    tauri::async_runtime::block_on(async {
-                        let updater = app.handle().updater_builder()
-                            .target("windows-x86_64")
-                            .version_comparator(|_, _| true)
-                            .timeout(Duration::from_secs(60)).build().unwrap();
-                        let update = updater.check().await.unwrap().expect("Published release missing");
-                        assert_eq!(update.version, config["version"].as_str().unwrap());
-                        let bytes = update.download(|_, _| {}, || {}).await.unwrap();
-                        assert!(bytes.starts_with(b"MZ"));
-                        update.verify(&bytes).unwrap();
-                        let mut corrupted = bytes.clone();
-                        corrupted[100] ^= 1;
-                        assert!(update.verify(&corrupted).is_err());
-                        let mut wrong_version = update.clone();
-                        wrong_version.version = "99.0.0".into();
-                        assert!(wrong_version.verify(&bytes).is_err());
-                    });
-                }
-            }
         }, || {},
     ).await;
     if let Err(error) = result {
@@ -101,4 +68,37 @@ pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
         return Err(format!("Update installation failed: {error}"));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "Downloads the published GitHub release; never runs the installer"]
+    fn published_release_signature_and_version_are_verified() {
+        let config: serde_json::Value = serde_json::from_str(include_str!("..\\tauri.conf.json")).unwrap();
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().plugins.0.insert("updater".into(), config["plugins"]["updater"].clone());
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .build(context).unwrap();
+        tauri::async_runtime::block_on(async {
+            let updater = app.handle().updater_builder()
+                .target("windows-x86_64")
+                .version_comparator(|_, _| true)
+                .timeout(Duration::from_secs(60)).build().unwrap();
+            let update = updater.check().await.unwrap().expect("Published release missing");
+            assert_eq!(update.version, config["version"].as_str().unwrap());
+            let bytes = update.download(|_, _| {}, || {}).await.unwrap();
+            assert!(bytes.starts_with(b"MZ"));
+            update.verify(&bytes).unwrap();
+            let mut corrupted = bytes.clone();
+            corrupted[100] ^= 1;
+            assert!(update.verify(&corrupted).is_err());
+            let mut wrong_version = update.clone();
+            wrong_version.version = "99.0.0".into();
+            assert!(wrong_version.verify(&bytes).is_err());
+        });
+    }
 }
