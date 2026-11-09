@@ -2,6 +2,7 @@
 
 .model-thumb img{display:block;width:100%;height:100%;object-fit:contain;border-radius:5px}
 .button-row+.upload{margin-top:8px}.toast{white-space:pre-line}
+.clipboard-buttons{margin-top:8px}
 .viewport-wrap{touch-action:none}#viewport{cursor:crosshair}#viewport.rotating{cursor:grabbing}.viewport-hint{right:20px;line-height:1.5;pointer-events:none}.view-controls{position:absolute;top:14px;right:16px;z-index:3;display:flex;gap:5px}.view-controls button{border:1px solid #4a5663;border-radius:5px;padding:6px 9px;background:#252d36e8;color:#e5ebf1;font-size:11px}.view-controls button:hover{background:#3a4551}.view-controls button:focus-visible{outline:2px solid #ed856e;outline-offset:2px}
 .texture-picker{display:flex;flex-direction:column;gap:8px;margin:0 18px 14px;color:#8995a1;font-size:11px}.texture-picker select{width:100%;min-width:0;padding:7px;background:#202730;color:#dce5ed;border:1px solid #46515d;border-radius:5px;font:inherit}.texture-picker select:focus-visible{outline:2px solid #ed856e}
 #alpha-dialog{max-width:560px;background:#202730;color:#e6e9ed;border:1px solid #56616d;border-radius:8px;padding:24px}#alpha-dialog::backdrop{background:#0009}#alpha-dialog p{font-size:12px;line-height:1.6;margin:14px 0;overflow-wrap:anywhere}#alpha-dialog .button-row{flex-wrap:wrap}

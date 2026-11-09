@@ -1,6 +1,6 @@
 [package]
 name = "texture-helper"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2024"
 
 [build-dependencies]
@@ -19,6 +19,7 @@ regex = "1"
 tempfile = "3"
 walkdir = "2"
 rfd = "0.15"
+arboard = "3"
 tauri-plugin-updater = "2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 

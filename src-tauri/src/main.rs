@@ -1161,6 +1161,22 @@ fn encode_dds(image: &DynamicImage) -> Vec<u8> {
 }
 
 #[tauri::command]
+fn copy_png(png_base64: String) -> Result<(), String> {
+    let bytes = STANDARD.decode(
+        png_base64.strip_prefix("data:image/png;base64,").unwrap_or(&png_base64)
+    ).map_err(|error| format!("Clipboard PNG base64 failed: {error}"))?;
+    let image = image::load_from_memory_with_format(&bytes, ImageFormat::Png)
+        .map_err(|error| format!("Clipboard PNG decode failed: {error}"))?.to_rgba8();
+    let mut clipboard = arboard::Clipboard::new()
+        .map_err(|error| format!("Could not open the clipboard: {error}"))?;
+    clipboard.set_image(arboard::ImageData {
+        width: image.width() as usize,
+        height: image.height() as usize,
+        bytes: std::borrow::Cow::Borrowed(image.as_raw()),
+    }).map_err(|error| format!("Could not copy the image: {error}"))
+}
+
+#[tauri::command]
 fn texture_rgb_preview(png_base64: String) -> Result<String, String> {
     let bytes = STANDARD.decode(
         png_base64.strip_prefix("data:image/png;base64,").unwrap_or(&png_base64)
@@ -1536,6 +1552,7 @@ fn main() {
             list_custom_skins,
             delete_custom_skin,
             save_png,
+            copy_png,
             import_image,
             texture_rgb_preview,
             texture_has_alpha,
@@ -1612,6 +1629,14 @@ mod tests {
                 fs::write(file, serde_json::to_vec(&detail).unwrap()).unwrap();
             }
         }
+    }
+
+    #[test]
+    fn clipboard_rejects_invalid_images_before_opening_clipboard() {
+        assert!(copy_png("not base64!".into()).unwrap_err().contains("base64 failed"));
+        assert!(copy_png(STANDARD.encode(b"not a PNG")).unwrap_err().contains("PNG decode failed"));
+        assert!(copy_png(format!("data:image/png;base64,{}", STANDARD.encode(b"not a PNG")))
+            .unwrap_err().contains("PNG decode failed"));
     }
 
     #[test]

@@ -27,6 +27,8 @@ Windows may warn about this unsigned application. Only install releases from the
 
 Texture images show RGB by default because some Source textures use alpha as a shader mask. **Show texture alpha** displays the original transparency. Exports retain the original alpha.
 
+**Copy PNG** copies the active texture (including imported edits) as an image for pasting into an image editor. **Copy UV overlay** copies only the visible colored UV layers on a transparent background. Both keep the original dimensions; Copy PNG does not include UV lines or the RGB-only display adjustment. The receiving application may handle clipboard transparency differently.
+
 ## Install or remove a skin
 
 - **Install custom skin** installs the active edited texture; **Install all edited textures** installs the current assembly's supported edits.

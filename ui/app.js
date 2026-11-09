@@ -976,6 +976,7 @@ function renderTexture() {
     .map(info => `${info.vmtPath || info.name}\n${info.vmtText || 'VMT not found'}`).join('\n\n');
   const skinSupported = supportedMaterial(material);
   $('export-vtf').disabled = !importedPng || !skinSupported;
+  $('copy-png').disabled = !(importedPng || material.image);
   $('import-note').textContent = !skinSupported
     ? material.vmtPath?.includes('reticles')
       ? 'Reticles are preview-only: PERPHEADS explicitly skips custom reticle materials when loading skins.'
@@ -1027,11 +1028,28 @@ $('export-dds').addEventListener('click', async () => {
   try { const saved = await invoke('save_dds', {name: material.name.split('/').pop(), pngBase64: image}); if (saved) toast(`Saved DDS: ${saved}`); }
   catch (error) { toast(String(error), true); }
 });
-$('download-overlay').addEventListener('click', () => {
-  const material = activeMaterial(); if (!material) return;
+function uvOverlayPng(material) {
   const canvas = document.createElement('canvas'); canvas.width = material.width || 512; canvas.height = material.height || 512;
   drawUv(canvas.getContext('2d'), canvas.width, canvas.height);
-  savePng(`${material.name.split('/').pop()}_uv_overlay`, canvas.toDataURL('image/png'));
+  return canvas.toDataURL('image/png');
+}
+$('download-overlay').addEventListener('click', () => {
+  const material = activeMaterial(); if (!material) return;
+  savePng(`${material.name.split('/').pop()}_uv_overlay`, uvOverlayPng(material));
+});
+async function copyImage(png, label) {
+  try { await invoke('copy_png', {pngBase64: png}); toast(`${label} copied to clipboard.`); }
+  catch (error) { toast(String(error), true); }
+}
+$('copy-png').addEventListener('click', () => {
+  const material = activeMaterial(); if (!material) return;
+  const png = currentEdit()?.png || material.image;
+  if (!png) { toast('This material has no decoded texture to copy.', true); return; }
+  copyImage(png, 'Texture image');
+});
+$('copy-overlay').addEventListener('click', () => {
+  const material = activeMaterial(); if (!material) return;
+  copyImage(uvOverlayPng(material), 'UV overlay');
 });
 $('png-input').addEventListener('change', async event => {
   const file = event.target.files[0], material = activeMaterial(); if (!file || !material) return;

@@ -333,11 +333,15 @@ with sync_playwright() as playwright:
         page.route(ORIGIN + "**", serve)
         page.add_init_script("""
           window.draftMock = {
-            failSave: false, installed: new Set(), calls: [], exports: [], updateChecks: 0, updateAvailable: null, failUpdateCheck: false,
+            failSave: false, installed: new Set(), calls: [], exports: [], copies: [], failCopy: false, updateChecks: 0, updateAvailable: null, failUpdateCheck: false,
             saved: new Map(Object.entries(JSON.parse(localStorage.getItem('mockDrafts') || '{}')))
           };
           window.__TAURI__ = {core: {invoke: async (command, args) => {
             const mock = window.draftMock; mock.calls.push(command);
+            if (command === 'copy_png') {
+              if (mock.failCopy) throw Error('Clipboard busy');
+              mock.copies.push(args.pngBase64); return;
+            }
             if (command === 'check_update') {
               mock.updateChecks++;
               if (mock.failUpdateCheck) throw Error('Simulated offline update check');
@@ -461,6 +465,24 @@ with sync_playwright() as playwright:
           return p[3] > 25 && p[3] < 40;
         }""")
         assert original in page.evaluate("previewTest.textureEdits()")[0]["source"]
+        page.locator("#copy-png").click()
+        page.wait_for_function("draftMock.copies.length === 1")
+        assert page.evaluate("draftMock.copies[0]") == original
+        page.locator("#copy-overlay").click()
+        page.wait_for_function("draftMock.copies.length === 2")
+        overlay = page.evaluate("""async () => {
+          const image = new Image(); image.src = draftMock.copies[1]; await image.decode();
+          const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+          const context = canvas.getContext('2d'); context.drawImage(image,0,0);
+          return {width:image.width,height:image.height,pixels:[...context.getImageData(0,0,image.width,image.height).data]};
+        }""")
+        assert overlay["width"] == overlay["height"] == 4
+        assert any(alpha == 0 for alpha in overlay["pixels"][3::4])
+        page.evaluate("draftMock.failCopy = true")
+        page.locator("#copy-png").click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('Clipboard busy')")
+        assert page.locator("#toast").get_attribute("class") == "toast error"
+        page.evaluate("draftMock.failCopy = false")
         page.locator("#show-alpha").uncheck()
         page.locator("#show-uv").check()
         print("PASS: RGB panel/swatches reveal masked color; alpha toggle and 3D source retain original alpha")
@@ -515,6 +537,18 @@ with sync_playwright() as playwright:
         layers = page.evaluate("previewTest.uvLayers()")
         assert len(layers) == 2 and all(layer["triangles"] > 0 for layer in layers)
         assert page.locator("#uv-layers input").count() == 2
+        for checkbox in page.locator("#uv-layers input").all():
+            checkbox.uncheck()
+        page.locator("#copy-overlay").click()
+        page.wait_for_function("draftMock.copies.length === 3")
+        assert page.evaluate("""async () => {
+          const image = new Image(); image.src = draftMock.copies[2]; await image.decode();
+          const canvas = document.createElement('canvas'); canvas.width=image.width;canvas.height=image.height;
+          const context=canvas.getContext('2d');context.drawImage(image,0,0);
+          return [...context.getImageData(0,0,image.width,image.height).data].every(value=>value===0);
+        }""")
+        for checkbox in page.locator("#uv-layers input").all():
+            checkbox.check()
         assert set(page.evaluate("previewTest.uvStrokes()")) == {"#ff765c", "#62c4ff"}
         assert len({item["path"] for item in page.evaluate("previewTest.highlightedMeshes()")}) == 2
         assert {item["color"] for item in page.evaluate("previewTest.highlightedMeshes()")} == {0xff765c, 0x62c4ff}
@@ -763,6 +797,11 @@ with sync_playwright() as playwright:
         page.wait_for_function("draftMock.exports.length === 2 && previewTest.draftState().status.includes('Saved locally')")
         assert page.evaluate("draftMock.exports[1][0].stripAlpha")
         assert page.evaluate("draftMock.exports[1][0].pngBase64") == alpha_png
+        copies_before = page.evaluate("draftMock.copies.length")
+        page.locator("#copy-png").click()
+        page.wait_for_function("count => draftMock.copies.length === count + 1", arg=copies_before)
+        assert page.evaluate("draftMock.copies.at(-1)") == alpha_png
+        print("PASS: copy original/edited PNG preserves alpha, UV copy respects layers and transparency, clipboard errors are visible")
         page.wait_for_function("id => draftMock.saved.get(id).textures[0].stripAlpha === true", arg=alpha_id)
         assert page.evaluate("id => draftMock.saved.get(id).textures[0].png", alpha_id) == alpha_png
         page.evaluate("previewTest.showSkins()")
