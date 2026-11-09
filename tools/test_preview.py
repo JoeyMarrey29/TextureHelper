@@ -342,7 +342,7 @@ with sync_playwright() as playwright:
             const mock = window.draftMock; mock.calls.push(command);
             if (command === 'copy_png') {
               if (mock.failCopy) throw Error('Clipboard busy');
-              mock.copies.push(args.pngBase64); return;
+              mock.copies.push(args.pngBase64); (mock.copyAlphaChoices ||= []).push(args.stripAlpha); return;
             }
             if (command === 'import_clipboard_image') {
               if (mock.deferClipboard) return new Promise(resolve => { mock.resolveClipboard = resolve; });
@@ -479,8 +479,10 @@ with sync_playwright() as playwright:
         page.locator("#copy-png").click()
         page.wait_for_function("draftMock.copies.length === 1")
         assert page.evaluate("draftMock.copies[0]") == original
+        assert page.evaluate("draftMock.copyAlphaChoices[0]") is True
         page.locator("#copy-overlay").click()
         page.wait_for_function("draftMock.copies.length === 2")
+        assert page.evaluate("draftMock.copyAlphaChoices[1]") is False
         overlay = page.evaluate("""async () => {
           const image = new Image(); image.src = draftMock.copies[1]; await image.decode();
           const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
@@ -868,7 +870,8 @@ with sync_playwright() as playwright:
         page.locator("#copy-png").click()
         page.wait_for_function("count => draftMock.copies.length === count + 1", arg=copies_before)
         assert page.evaluate("draftMock.copies.at(-1)") == alpha_png
-        print("PASS: copy original/edited PNG preserves alpha, UV copy respects layers and transparency, clipboard errors are visible")
+        assert page.evaluate("draftMock.copyAlphaChoices.at(-1)") is True
+        print("PASS: original/edited texture copy requests opaque RGB, UV copy retains transparency, clipboard errors are visible")
         page.wait_for_function("id => draftMock.saved.get(id).textures[0].stripAlpha === true", arg=alpha_id)
         assert page.evaluate("id => draftMock.saved.get(id).textures[0].png", alpha_id) == alpha_png
         page.evaluate("previewTest.showSkins()")

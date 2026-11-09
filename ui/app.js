@@ -1039,19 +1039,19 @@ $('download-overlay').addEventListener('click', () => {
   const material = activeMaterial(); if (!material) return;
   savePng(`${material.name.split('/').pop()}_uv_overlay`, uvOverlayPng(material));
 });
-async function copyImage(png, label) {
-  try { await invoke('copy_png', {pngBase64: png}); toast(`${label} copied to clipboard.`); }
+async function copyImage(png, label, stripAlpha) {
+  try { await invoke('copy_png', {pngBase64: png, stripAlpha}); toast(`${label} copied to clipboard.`); }
   catch (error) { toast(String(error), true); }
 }
 $('copy-png').addEventListener('click', () => {
   const material = activeMaterial(); if (!material) return;
   const png = currentEdit()?.png || material.image;
   if (!png) { toast('This material has no decoded texture to copy.', true); return; }
-  copyImage(png, 'Texture image');
+  copyImage(png, 'Texture image (RGB, no transparency)', true);
 });
 $('copy-overlay').addEventListener('click', () => {
   const material = activeMaterial(); if (!material) return;
-  copyImage(uvOverlayPng(material), 'UV overlay');
+  copyImage(uvOverlayPng(material), 'UV overlay', false);
 });
 async function importTexture(loadImage) {
   const material = activeMaterial();

@@ -27,7 +27,7 @@ Windows may warn about this unsigned application. Only install releases from the
 
 Texture images show RGB by default because some Source textures use alpha as a shader mask. **Show texture alpha** displays the original transparency. Exports retain the original alpha.
 
-**Copy PNG to clipboard** copies the active texture (including imported edits) as an image for pasting into an image editor. **Copy UV overlay to clipboard** copies only the visible colored UV layers on a transparent background. Both keep the original dimensions; copying PNG does not include UV lines or the RGB-only display adjustment. **Export UV overlay** saves those layers as a PNG file. The receiving application may handle clipboard transparency differently.
+**Copy PNG to clipboard** copies the active texture (including imported edits) as opaque RGB pixels for pasting into an image editor, without its alpha mask or UV lines. Hidden RGB colors are preserved rather than composited onto a background. **Copy UV overlay to clipboard** copies only the visible colored UV layers on a transparent background. Both keep the original dimensions. This does not change the original texture, draft, imports, or PNG/DDS file exports, which retain alpha. **Export UV overlay** saves those layers as a PNG file. The receiving application may handle clipboard transparency differently.
 
 **Export texture** opens a format popup: choose **PNG** or **DDS**, then **Choose save location**. Cancelling either popup leaves your texture and draft unchanged.
 

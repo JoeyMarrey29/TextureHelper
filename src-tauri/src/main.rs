@@ -1161,12 +1161,8 @@ fn encode_dds(image: &DynamicImage) -> Vec<u8> {
 }
 
 #[tauri::command]
-fn copy_png(png_base64: String) -> Result<(), String> {
-    let bytes = STANDARD.decode(
-        png_base64.strip_prefix("data:image/png;base64,").unwrap_or(&png_base64)
-    ).map_err(|error| format!("Clipboard PNG base64 failed: {error}"))?;
-    let image = image::load_from_memory_with_format(&bytes, ImageFormat::Png)
-        .map_err(|error| format!("Clipboard PNG decode failed: {error}"))?.to_rgba8();
+fn copy_png(png_base64: String, strip_alpha: bool) -> Result<(), String> {
+    let image = clipboard_copy_pixels(&png_base64, strip_alpha)?;
     let mut clipboard = arboard::Clipboard::new()
         .map_err(|error| format!("Could not open the clipboard: {error}"))?;
     clipboard.set_image(arboard::ImageData {
@@ -1174,6 +1170,20 @@ fn copy_png(png_base64: String) -> Result<(), String> {
         height: image.height() as usize,
         bytes: std::borrow::Cow::Borrowed(image.as_raw()),
     }).map_err(|error| format!("Could not copy the image: {error}"))
+}
+
+fn clipboard_copy_pixels(png_base64: &str, strip_alpha: bool) -> Result<image::RgbaImage, String> {
+    let bytes = STANDARD.decode(
+        png_base64.strip_prefix("data:image/png;base64,").unwrap_or(&png_base64)
+    ).map_err(|error| format!("Clipboard PNG base64 failed: {error}"))?;
+    let mut image = image::load_from_memory_with_format(&bytes, ImageFormat::Png)
+        .map_err(|error| format!("Clipboard PNG decode failed: {error}"))?.to_rgba8();
+    if strip_alpha {
+        for pixel in image.pixels_mut() {
+            pixel[3] = 255;
+        }
+    }
+    Ok(image)
 }
 
 #[tauri::command]
@@ -1665,6 +1675,13 @@ mod tests {
         let decoded = image::load_from_memory_with_format(&bytes, ImageFormat::Png).unwrap().to_rgba8();
         assert_eq!(decoded.dimensions(), (2, 2));
         assert_eq!(decoded.into_raw(), pixels);
+        let opaque = clipboard_copy_pixels(&png, true).unwrap();
+        assert_eq!(opaque.dimensions(), (2, 2));
+        for (original, copied) in pixels.chunks_exact(4).zip(opaque.pixels()) {
+            assert_eq!(&copied.0[..3], &original[..3]);
+            assert_eq!(copied[3], 255);
+        }
+        assert_eq!(clipboard_copy_pixels(&png, false).unwrap().into_raw(), pixels);
         for (width, height, data) in [(0, 1, vec![]), (2, 2, vec![0; 3]), (usize::MAX, 1, vec![])] {
             assert!(clipboard_image_png(arboard::ImageData {
                 width, height, bytes: std::borrow::Cow::Owned(data),
@@ -1674,9 +1691,9 @@ mod tests {
 
     #[test]
     fn clipboard_rejects_invalid_images_before_opening_clipboard() {
-        assert!(copy_png("not base64!".into()).unwrap_err().contains("base64 failed"));
-        assert!(copy_png(STANDARD.encode(b"not a PNG")).unwrap_err().contains("PNG decode failed"));
-        assert!(copy_png(format!("data:image/png;base64,{}", STANDARD.encode(b"not a PNG")))
+        assert!(copy_png("not base64!".into(), true).unwrap_err().contains("base64 failed"));
+        assert!(copy_png(STANDARD.encode(b"not a PNG"), true).unwrap_err().contains("PNG decode failed"));
+        assert!(copy_png(format!("data:image/png;base64,{}", STANDARD.encode(b"not a PNG")), false)
             .unwrap_err().contains("PNG decode failed"));
     }
 
