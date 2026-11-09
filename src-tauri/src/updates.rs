@@ -84,8 +84,13 @@ mod tests {
             .plugin(tauri_plugin_updater::Builder::new().build())
             .build(context).unwrap();
         tauri::async_runtime::block_on(async {
+            // GitHub's latest redirect can remain cached briefly after publication.
             let updater = app.handle().updater_builder()
                 .target("windows-x86_64")
+                .endpoints(vec![format!(
+                    "https://github.com/JoeyMarrey29/TextureHelper/releases/download/v{}/latest.json",
+                    config["version"].as_str().unwrap()
+                ).parse().unwrap()]).unwrap()
                 .version_comparator(|_, _| true)
                 .timeout(Duration::from_secs(60)).build().unwrap();
             let update = updater.check().await.unwrap().expect("Published release missing");
