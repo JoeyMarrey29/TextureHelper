@@ -1,0 +1,22 @@
+name: Tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test --locked
+      - name: Install headless test dependency
+        run: python -m pip install playwright
+      - name: UI regression tests
+        run: python tools\test_preview.py

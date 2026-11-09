@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "PERPHEADS Texture Helper",
+  "version": "0.2.0",
+  "identifier": "com.perpheads.texturehelper",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [{ "title": "PERPHEADS Texture Helper", "width": 1440, "height": 900, "minWidth": 1000, "minHeight": 650 }],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "license": "GPL-3.0-only",
+    "licenseFile": "../LICENSE",
+    "shortDescription": "Local PERPHEADS model and texture editor",
+    "resources": { "../HELP.md": "HELP.md", "../LICENSE": "LICENSE", "../ui/vendor/THREE-LICENSE.txt": "THREE-LICENSE.txt" },
+    "windows": { "nsis": { "installMode": "currentUser" }, "webviewInstallMode": { "type": "downloadBootstrapper" } }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDAwNkIwNUFDNjdGNEIyRTkKUldUcHN2Um5yQVZyQU5zZCtZWGpVT3RNdnM4cFJ4RzI5TzBkR3lxS2ZwUnZUaS94Zm8xL3UvdXUK",
+      "requireSignedVersion": true,
+      "endpoints": ["https://github.com/JoeyMarrey29/TextureHelper/releases/latest/download/latest.json"],
+      "windows": { "installMode": "passive" }
+    }
+  }
+}

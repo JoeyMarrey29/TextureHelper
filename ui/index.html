@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PERPHEADS Texture Helper</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">P</span><div><strong>PERPHEADS</strong><small>TEXTURE HELPER</small></div></div>
+      <button id="updates-button" type="button" class="updates-button"><strong id="app-version">Updates</strong><span id="update-status">Checking for updates...</span></button>
+      <div class="source"><span class="source-dot"></span><span id="source-label">No content selected</span></div>
+      <button id="choose-folder" class="button secondary">Choose GMod folder</button>
+    </header>
+    <main class="layout">
+      <aside class="library">
+        <div class="panel-heading"><div><span class="eyebrow">CONTENT LIBRARY</span><h1 id="library-title">Models</h1></div><span id="model-count" class="count">0</span></div>
+        <div class="library-tabs"><button type="button" class="active" data-library="models">Models</button><button type="button" data-library="skins">Custom skins <span id="skin-count">0</span></button></div>
+        <label class="search"><span>⌕</span><input id="search" placeholder="Search model paths" autocomplete="off"></label>
+        <div id="compatibility-filter" class="compatibility-filter" role="group" aria-label="Model compatibility"><button type="button" class="active" data-compatibility="compatible" aria-pressed="true">Compatible</button><button type="button" data-compatibility="all" aria-pressed="false">All models</button></div>
+        <div id="category-filters" class="category-filters"></div>
+        <div id="scan-info" class="scan-info">Choose Garry's Mod to index installed addons and Workshop content.</div>
+        <div id="model-list" class="model-list"></div>
+      </aside>
+      <section class="workspace">
+        <div class="model-head"><div><span class="eyebrow">MODEL INSPECTOR</span><h2 id="model-name">Select a model</h2><p id="model-path">Search the library to begin.</p></div><span id="triangle-count" class="tag">3D preview</span></div>
+        <div id="draft-tools" class="draft-tools hidden">
+          <label>Draft name<input id="draft-name" type="text" aria-label="Draft name"></label>
+          <div><small id="draft-status" role="status"></small><button id="save-draft" type="button" class="button secondary">Save now</button></div>
+        </div>
+        <div class="viewport-wrap"><canvas id="viewport"></canvas><div class="view-controls" aria-label="Model views"><button type="button" data-view="default">Reset</button><button type="button" data-view="front">Front</button><button type="button" data-view="side">Side</button><button type="button" data-view="top">Top</button></div><div class="viewport-hint">Left click: select texture · Hold right click: rotate · Shift + right drag: roll · Scroll: zoom</div><div id="viewport-empty" class="viewport-empty"><span class="empty-cube">⬡</span><strong>Choose a model</strong><span>Its rendered mesh will appear here.</span></div></div>
+        <div class="model-meta"><span>GMA / SOURCE</span><code id="model-origin">—</code><button id="copy-path" class="text-button" disabled>Copy path</button></div>
+        <div id="related-models" class="related-models hidden"><div class="related-heading"><span>ATTACHMENT SLOTS</span></div><div id="related-list"></div><small id="attachment-guidance"></small></div>
+      </section>
+      <aside class="inspector">
+        <div class="panel-heading"><div><span class="eyebrow">TEXTURE WORKSPACE</span><h2>Selected texture</h2></div></div>
+        <label class="texture-picker">Click a part in the 3D view, or choose a texture<select id="texture-select" aria-label="Selected texture"></select></label>
+        <div id="materials" class="materials"><div class="quiet">Select a model to inspect its materials.</div></div>
+        <section id="texture-tools" class="texture-tools hidden">
+          <div class="tool-title"><div><span class="eyebrow">ACTIVE TEXTURE</span><h3 id="material-name">—</h3></div><span id="texture-size" class="tag">—</span></div>
+          <div class="texture-stage"><canvas id="texture-canvas"></canvas></div>
+          <label class="switch" title="Source can use alpha for shader masks rather than transparency. This affects only this preview; exports keep the original alpha."><input type="checkbox" id="show-alpha"><span>Show texture alpha (RGB shown by default)</span></label>
+          <label class="switch"><input type="checkbox" id="show-uv" checked><span>Show mesh UV triangles</span></label>
+          <div id="uv-layers" class="uv-layers" aria-label="Texture UV overlays"></div>
+          <div class="button-row"><button id="export-png" class="button secondary">Export PNG</button><button id="export-dds" class="button secondary">Export DDS</button><button id="download-overlay" class="button secondary">Save UV overlay</button></div>
+          <label class="button primary upload wide">Import edited PNG or DDS<input type="file" id="png-input" accept="image/png,image/vnd-ms.dds,.dds" hidden></label>
+          <p id="import-note" class="note">Import a PNG with the same dimensions to preview it on the model. First-person skins install using PERPHEADS' phcustomtextures method.</p>
+          <button id="export-vtf" class="button primary wide" disabled>Install custom skin</button>
+          <button id="install-all" class="button secondary wide" disabled>Install all edited textures</button>
+          <div class="file-detail"><span>VMT</span><code id="vmt-path">—</code></div>
+          <div class="file-detail"><span>VMT SOURCE</span><code id="vmt-origin">—</code></div>
+          <div class="file-detail"><span>VTF</span><code id="vtf-path">—</code></div>
+          <div class="file-detail"><span>VTF SOURCE</span><code id="vtf-origin">—</code></div>
+          <details><summary>View VMT</summary><pre id="vmt-text"></pre></details>
+          <details><summary>View mesh UV coordinates</summary><pre id="uv-coordinates"></pre></details>
+        </section>
+      </aside>
+    </main>
+    <div id="toast" class="toast hidden" role="status"></div>
+    <dialog id="alpha-dialog" aria-labelledby="alpha-dialog-title">
+      <form method="dialog">
+        <h2 id="alpha-dialog-title">Keep this texture's alpha channel?</h2>
+        <p id="alpha-texture-name"></p>
+        <p>Some models use alpha for shader masks rather than transparency, so their VTF can look blank in texture viewers. Removing alpha makes the installed VTF opaque, but can change reticle transparency or in-game shader effects.</p>
+        <p>Your original draft, preview and PNG/DDS exports will keep their pixels. This choice affects only installation.</p>
+        <div class="button-row">
+          <button id="alpha-keep" class="button primary" value="keep">Keep alpha (recommended)</button>
+          <button id="alpha-remove" class="button secondary" value="remove">Remove alpha</button>
+          <button class="button secondary" value="cancel">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="updates-dialog" aria-labelledby="updates-title">
+      <h2 id="updates-title">Updates and release log</h2>
+      <p id="update-summary">Checking for updates...</p>
+      <p>Updates come from the public GitHub releases. Nothing is downloaded or installed without your confirmation. Existing game skins and local drafts are kept.</p>
+      <div class="button-row"><button id="check-updates" class="button secondary">Check again</button><button id="install-update" class="button primary" disabled>Download and install</button><form method="dialog"><button id="close-updates" class="button secondary">Close</button></form></div>
+      <pre id="latest-update-notes"></pre>
+      <h3>Release history</h3><div id="update-log"></div>
+    </dialog>
+  </div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+# Quick guide
+
+## Getting started
+
+1. Download the latest Windows x64 **Setup** from [GitHub Releases](https://github.com/JoeyMarrey29/TextureHelper/releases/latest) and install it.
+2. Have Garry's Mod and PERPHEADS Workshop content installed. The helper does not include game content.
+3. Choose your `Steam\steamapps\common\GarrysMod\garrysmod` folder.
+
+Windows may warn about this unsigned application. Only install releases from the official repository. Setup downloads Microsoft's WebView2 runtime only if it is missing.
+
+## Find and inspect a weapon
+
+- Search the **Models** library or filter by Weapons, Sight, Stock, Magazine and other categories.
+- Choose attachments from the slots below the model. These choices follow PERPHEADS compatibility rules.
+- Hold **right click** and drag to rotate. **Shift + right drag** rolls; scroll zooms.
+- **Left-click a part** to open its texture on the right. Parts sharing a VTF are highlighted together.
+- The compact texture dropdown can select materials hidden inside the model. Click empty space to clear highlights.
+- Toggle UV layers to inspect each part's mapping. Layer colors match the 3D highlights.
+
+## Edit and save
+
+1. Export the texture as **PNG** or **DDS**. Save the UV overlay separately if useful.
+2. Edit it in your preferred image editor, keeping its original dimensions.
+3. Import the edited PNG/DDS. Every visible part sharing that texture updates.
+4. Name your draft above the model. Imports start autosaving without installing anything.
+5. Wait for **Saved locally · safe to close**. Reopen through **Custom skins > Open draft**.
+
+Texture images show RGB by default because some Source textures use alpha as a shader mask. **Show texture alpha** displays the original transparency. Exports retain the original alpha.
+
+## Install or remove a skin
+
+- **Install custom skin** installs the active edited texture; **Install all edited textures** installs the current assembly's supported edits.
+- If the texture contains transparency, choose **Keep alpha** (recommended), **Remove alpha**, or **Cancel**. Removing alpha affects only the installed VTF, but can change in-game transparency or shader effects. Draft pixels stay intact.
+- Game files are written under `garrysmod\addons\skins` and `garrysmod\data\phcustomtextures`. Original Workshop archives are never changed.
+- Existing different skins are not overwritten. Use **Custom skins > Uninstall** first; the saved copy remains available.
+- **Delete saved copy** removes a local draft, not an installed skin.
+- Jarheads sight bodies are supported. Reticles are preview-only because PERPHEADS excludes them from custom skins.
+
+## Updates and troubleshooting
+
+The **version/update button immediately beside the logo** checks for stable GitHub releases at startup. Open it to read the release log or check again. Download and installation require confirmation; edited textures must save successfully first. Installed releases close during updating. Old portable test ZIPs should migrate by installing Setup once.
+
+If something looks wrong, send the weapon, attachment and material names, reproduction steps, any error text and a screenshot to [Issues](https://github.com/JoeyMarrey29/TextureHelper/issues). A failed update check may mean you are offline or GitHub is rate-limiting requests; check again later or download Setup manually.
+
+Drafts are local to your Windows account, not cloud-synced. Back them up before moving PCs. This is an unofficial tool and a static preview: advanced Source shaders and weapon animation can differ from the game.
