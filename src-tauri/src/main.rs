@@ -684,9 +684,10 @@ fn custom_skin_inventory(install: &Path) -> Vec<CustomSkin> {
                     .captures(&text)
                     .and_then(|capture| capture.get(1).or_else(|| capture.get(2)).map(|part| part.as_str().to_owned()))
             })
-            .map(|reference| key(&reference))
+            .map(|reference| base_texture_path(&reference).trim_start_matches("materials/").trim_end_matches(".vtf").to_owned())
             .filter(|reference| {
                 reference.ends_with("_custom")
+                    && !reference.contains('\\') && !reference.contains(':')
                     && reference
                         .split('/')
                         .all(|part| !part.is_empty() && part != "." && part != "..")
@@ -1598,6 +1599,9 @@ fn main() {
             drafts::delete_draft,
             drafts::uninstall_draft,
             drafts::archive_custom_skin,
+            drafts::export_draft,
+            drafts::export_custom_skin,
+            drafts::import_skin,
             drafts::install_draft
         ])
         .run(context)
@@ -2104,7 +2108,7 @@ mod tests {
         let second_vmt = root
             .path()
             .join("data/phcustomtextures/models/weapons/v_models/g36c/second.vmt");
-        fs::write(&second_vmt, format!("\"$basetexture\" \"{base}_custom\"")).unwrap();
+        fs::write(&second_vmt, format!("\"$basetexture\" \"materials/{base}_custom.vtf\"")).unwrap();
         let skins = custom_skin_inventory(root.path());
         assert_eq!(skins.len(), 2);
         assert!(skins.iter().all(|skin| skin.has_vtf));

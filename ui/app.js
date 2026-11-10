@@ -590,6 +590,7 @@ async function setSlotAttachment(slot, value) {
 }
 function attachmentName(item) { return item.path.split('/').pop().replace(/\.mdl$/i, '').replace(/_/g, ' '); }
 function renderList() {
+  $('import-skin').classList.toggle('hidden', libraryView !== 'skins');
   $('library-title').textContent = libraryView === 'models' ? 'Models' : 'Custom skins';
   $('search').placeholder = libraryView === 'models' ? 'Search model paths' : 'Search custom skins';
   $('skin-count').textContent = (drafts.length + customSkins.filter(skin => !drafts.some(draft => draft.installedIds?.includes(skin.id))).length).toLocaleString();
@@ -658,7 +659,7 @@ function renderCustomSkins() {
   const found = customSkins.filter(skin => !drafts.some(draft => draft.installedIds?.includes(skin.id))
     && `${skin.name} ${skin.vmtPath || ''} ${skin.vtfPath || ''}`.toLowerCase().includes(query));
   $('model-count').textContent = (found.length + saved.length).toLocaleString();
-  $('scan-info').textContent = 'Drafts save locally without installing. Open to resume editing; Uninstall keeps the saved skin.'
+  $('scan-info').textContent = 'Share with Export skin or Import skin. Uninstall keeps your saved copy; Delete skin removes it and matching installed files.'
     + (installAvailable ? '' : ' Choose your Garry\'s Mod folder to check installed status or uninstall.');
   const list = $('model-list'); list.replaceChildren();
   for (const draft of saved) {
@@ -669,15 +670,17 @@ function renderCustomSkins() {
     const installed = !installAvailable ? 'Install status unavailable' : draft.installedCount === 0 ? 'Not installed'
       : draft.installedCount === draft.installableCount ? 'Installed' : `Partly installed (${draft.installedCount}/${draft.installableCount})`;
     status.textContent = `${draft.archived ? 'Saved skin backup' : `Saved draft · ${draft.textureCount} edited textures`} · ${installed}`;
-    const path = document.createElement('small'); path.textContent = draft.modelPath;
+    const path = document.createElement('small'); path.className = 'skin-path'; path.textContent = draft.modelPath.split('/').pop() || 'VMT / VTF backup'; path.title = draft.modelPath;
     const actions = document.createElement('div'); actions.className = 'skin-actions';
+    const tools = document.createElement('div'); tools.className = 'skin-tools';
     const button = (label, action) => { const item = document.createElement('button'); item.type = 'button'; item.className = 'button secondary';
       item.textContent = label; item.addEventListener('click', action); actions.append(item); return item; };
     if (!draft.archived) button('Open draft', () => openDraft(draft));
     if (draft.installableCount > draft.installedCount) button('Install', () => restoreSavedSkin(draft)).disabled = !installAvailable;
     if (draft.installedCount) button('Uninstall', () => uninstallSavedDraft(draft));
-    button('Delete saved copy', () => deleteSavedDraft(draft));
-    detail.append(name, status, path, actions); row.append(detail); list.append(row);
+    const share = button('Export skin', () => exportSkin('export_draft', draft.id)); tools.append(share);
+    const remove = button('Delete skin', () => deleteSavedDraft(draft)); remove.classList.add('danger'); tools.append(remove);
+    detail.append(name, status, path, actions, tools); row.append(detail); list.append(row);
   }
   for (const skin of found) {
     const row = document.createElement('div'); row.className = 'skin-item';
@@ -686,13 +689,19 @@ function renderCustomSkins() {
     const status = document.createElement('small'); status.className = `skin-status${skin.vmtPath && skin.hasVtf ? '' : ' incomplete'}`;
     status.textContent = skin.vmtPath && skin.hasVtf ? 'Installed · no local draft' : skin.vmtPath ? 'VMT only · texture missing' : 'VTF only · material missing';
     detail.append(name, status);
-    for (const path of [skin.vmtPath, skin.vtfPath].filter(Boolean)) { const label = document.createElement('small'); label.textContent = path; detail.append(label); }
+    const paths = document.createElement('details'); paths.className = 'skin-files';
+    const summary = document.createElement('summary'); summary.textContent = 'Installed files'; paths.append(summary);
+    for (const path of [skin.vmtPath, skin.vtfPath].filter(Boolean)) { const label = document.createElement('small'); label.textContent = path; paths.append(label); }
+    detail.append(paths);
     const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'delete-skin'; remove.textContent = 'Delete';
     remove.addEventListener('click', () => deleteSkin(skin));
     const actions = document.createElement('div'); actions.className = 'skin-actions';
     const uninstall = document.createElement('button'); uninstall.type = 'button'; uninstall.className = 'button secondary'; uninstall.textContent = 'Uninstall';
     uninstall.addEventListener('click', () => archiveInstalledSkin(skin));
-    actions.append(uninstall, remove); detail.append(actions);
+    const share = document.createElement('button'); share.type = 'button'; share.className = 'button secondary'; share.textContent = 'Export skin';
+    share.addEventListener('click', () => exportSkin('export_custom_skin', skin.id));
+    const tools = document.createElement('div'); tools.className = 'skin-tools';
+    tools.append(share, remove); actions.append(uninstall); detail.append(actions, tools);
     row.append(detail); list.append(row);
   }
 }
@@ -702,6 +711,27 @@ async function refreshSkins() {
   renderList();
   if (model) renderMaterials();
 }
+
+async function exportSkin(command, id) {
+  try {
+    await saveDraft();
+    const path = await invoke(command, {id});
+    if (path) toast(`Skin exported: ${path}`);
+  } catch (error) { toast(`Skin could not be exported: ${error}`, true); }
+}
+
+$('import-skin').addEventListener('click', async () => {
+  const button = $('import-skin'); button.disabled = true;
+  try {
+    const name = await invoke('import_skin');
+    if (name !== null) {
+      $('search').value = '';
+      await refreshSkins();
+      toast(`Imported "${name}" as a new saved copy. Nothing was installed.`);
+    }
+  } catch (error) { toast(`Skin could not be imported: ${error}`, true); }
+  finally { button.disabled = false; }
+});
 
 function renderDraftStatus() {
   $('draft-tools').classList.toggle('hidden', !model);
@@ -717,6 +747,7 @@ function saveDraft() {
   const session = draftSession;
   const snapshot = {
     version: 1, name: session.name, modelPath: model.path, slotSelections: Object.fromEntries(slotSelections),
+    ...(session.aiOriginals?.length ? {aiOriginals:session.aiOriginals} : {}),
     activePartPath, activeMaterialKey: skinKey(activeMaterial()) || null,
     textures: [...edits].map(([key, edit]) => ({
       key, partPath: edit.partPath, vmtPath: edit.vmtPath || null,
@@ -769,7 +800,7 @@ async function openDraft(summary) {
         throw new Error(`Saved texture ${edit.key} no longer matches the content's ${material.width} × ${material.height} dimensions.`);
       }
     }
-    draftSession = {id: draft.id, name: draft.name, status: 'Saved locally · restored', failed: false};
+    draftSession = {id: draft.id, name: draft.name, status: 'Saved locally · restored', failed: false, aiOriginals:draft.aiOriginals || []};
     for (const edit of restored) edits.set(edit.key, edit);
     activePartPath = assembly.has(draft.activePartPath) ? draft.activePartPath : detail.path;
     const index = activePart().materials.findIndex(material => skinKey(material) === draft.activeMaterialKey);
@@ -814,7 +845,7 @@ async function restoreSavedSkin(draft) {
 }
 
 async function deleteSavedDraft(draft) {
-  if (!confirm(`Delete the saved copy of "${draft.name}"?\nInstalled game files will not be removed. This cannot be undone.`)) return;
+  if (!confirm(`Delete "${draft.name}"?\n${installAvailable ? 'The saved copy and all matching installed textures and attachments will be removed. Shared textures still used by other skins and modified files are kept.' : 'Install location is unavailable: only the saved copy can be removed. Installed game files cannot be checked.'}\nUse Uninstall instead to keep a saved copy. This cannot be undone.`)) return;
   try {
     await draftSaveQueue;
     await invoke('delete_draft', {id: draft.id});
@@ -823,7 +854,7 @@ async function deleteSavedDraft(draft) {
       edits.clear(); importedPng = null; importedImage = null;
       renderAssembly();
     }
-    await refreshSkins(); toast('Saved copy deleted. Installed files were left untouched.');
+    await refreshSkins(); toast(installAvailable ? 'Skin deleted, including matching installed files. Shared or modified files were kept.' : 'Saved copy deleted. Install location was unavailable; game files were not checked.');
   } catch (error) { toast(String(error), true); }
 }
 

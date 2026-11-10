@@ -33,14 +33,24 @@ Texture images show RGB by default because some Source textures use alpha as a s
 
 To bring edits back without saving a file, copy image pixels in your editor, select the intended texture, and click **Import from clipboard**. The image must match the original texture dimensions. It previews on all parts sharing that VTF and saves to your local draft, just like importing a PNG or DDS file; it does not install a skin. Clipboard text and copied file paths are not image pixels. Clipboard transparency depends on what your editor supplies.
 
+The experimental AI integration has been removed. Previously saved drafts remain usable; any embedded original images are retained when resaving them.
+
 ## Install or remove a skin
 
 - **Install custom skin** installs the active edited texture; **Install all edited textures** installs the current assembly's supported edits.
 - If the texture contains transparency, choose **Keep alpha** (recommended), **Remove alpha**, or **Cancel**. Removing alpha affects only the installed VTF, but can change in-game transparency or shader effects. Draft pixels stay intact.
 - Game files are written under `garrysmod\addons\skins` and `garrysmod\data\phcustomtextures`. Original Workshop archives are never changed.
 - Existing different skins are not overwritten. Use **Custom skins > Uninstall** first; the saved copy remains available.
-- **Delete saved copy** removes a local draft, not an installed skin.
+- **Delete skin** removes the saved copy and its matching installed textures/materials, including attachments. Shared textures still referenced by another skin and files changed since saving are kept. **Uninstall** removes the matching installation but keeps your saved copy. If no game folder is selected, deletion explicitly warns that only the saved copy can be removed.
 - Jarheads sight bodies are supported. Reticles are preview-only because PERPHEADS excludes them from custom skins.
+
+## Share complete skins
+
+In **Custom skins**, click **Export skin** on a saved draft, uninstalled backup, or installed skin to save a `.phskin` package. Draft packages include every edited texture, alpha choice, material setting, selected attachment and draft name. Backups and installed skins include their saved VMT/VTF files; they reinstall as backups rather than editable assembly drafts. Exporting an installed skin does not uninstall it. Only edited/custom textures are included, not game models or the original content pack.
+
+Click **Import skin** beside the Custom skins heading to add a package as a new saved copy. Import does not install anything, replace an existing draft, or change the assembly you are editing. Open an imported draft to preview it, then install separately; backups have an Install button. Recipients need the corresponding PERPHEADS content for preview. Existing different installed skins are never overwritten.
+
+Packages are self-contained JSON files, limited to 256 MiB, with up to 256 edited textures (32 MiB PNG / 8192 pixels per side) or 512 backup files. Import validates format/version, images and relative paths; backups only accept VMT/VTF files in the existing skin folders. Only import skins from people you trust, and only share textures you have permission to distribute. Packages include the draft's name and relative game material/model paths, but not its local storage ID or absolute installation paths.
 
 ## Updates and troubleshooting
 

@@ -360,12 +360,28 @@ with sync_playwright() as playwright:
             }
             if (command === 'update_log') return [{tag_name:'v0.2.0',name:'Texture Helper 0.2.0',body:'Release notes <script>not executable</script>'}];
             if (command === 'install_update') throw Error('Simulated installer failure');
-            if (command === 'list_custom_skins') return [];
+            if (command === 'list_custom_skins') return mock.customInventory || [];
             if (command === 'list_drafts') return [...mock.saved.values()].map(draft => ({
               id: draft.id, name: draft.name, modelPath: draft.modelPath, textureCount: draft.textures.length,
               installedCount: mock.installed.has(draft.id) ? draft.textures.length : 0,
-              installableCount: draft.textures.length, archived: false, installedIds: []
+              installableCount: draft.archivedFiles?.length ? 1 : draft.textures.length,
+              archived: !!draft.archivedFiles?.length, installedIds: []
             }));
+            if (command === 'export_draft' || command === 'export_custom_skin') {
+              if (mock.failPackageExport) throw Error('Simulated package export failure');
+              mock.packageExports ||= [];
+              mock.packageExports.push({command, id:args.id, draft:structuredClone(mock.saved.get(args.id))});
+              return mock.cancelPackageExport ? null : 'shared.phskin';
+            }
+            if (command === 'import_skin') {
+              if (mock.failPackageImport) throw Error('Invalid skin package');
+              if (!mock.packageImport) return null;
+              const draft = structuredClone(mock.packageImport);
+              draft.id = 'imported-' + (mock.saved.size + 1);
+              mock.saved.set(draft.id, draft);
+              localStorage.setItem('mockDrafts', JSON.stringify(Object.fromEntries(mock.saved)));
+              return draft.name;
+            }
             if (command === 'save_draft') {
               if (mock.failSave) throw Error('Simulated disk failure');
               const draft = structuredClone(args.draft);
@@ -377,6 +393,7 @@ with sync_playwright() as playwright:
             if (command === 'load_draft') return structuredClone(mock.saved.get(args.id));
             if (command === 'delete_draft') {
               mock.saved.delete(args.id);
+              mock.installed.delete(args.id);
               localStorage.setItem('mockDrafts', JSON.stringify(Object.fromEntries(mock.saved)));
               return;
             }
@@ -785,6 +802,11 @@ with sync_playwright() as playwright:
         page.wait_for_function("draftMock.saved.values().next().value.name === 'My saved AK101'")
         page.evaluate("previewTest.setSlotAttachment('SLOT_STOCK', 'stock_ak101')")
         page.evaluate("previewTest.open('models/perpheads/weapons/c_m4a1.mdl')")
+        legacy_originals = page.evaluate("""() => {
+          const draft = draftMock.saved.values().next().value;
+          draft.aiOriginals = [{id:'legacy-texture', label:'Saved original', png:draft.textures[0].png}];
+          return draft.aiOriginals;
+        }""")
         page.evaluate("previewTest.showSkins()")
         row = page.locator(f'.skin-item[data-draft-id="{draft_id}"]')
         assert "My saved AK101" in row.inner_text()
@@ -805,6 +827,9 @@ with sync_playwright() as playwright:
         page.evaluate("draftMock.failSave = false")
         page.get_by_role("button", name="Save now", exact=True).click()
         page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
+        assert page.evaluate("draftMock.saved.values().next().value.aiOriginals") == legacy_originals
+        assert page.locator("#edit-ai, #copilot-account, #ai-edit-dialog").count() == 0
+        assert not page.evaluate("draftMock.calls.some(command => command.startsWith('ai_'))")
         page.reload()
         page.wait_for_function("window.previewTest !== undefined")
         page.evaluate("previewTest.open('models/perpheads/weapons/c_m4a1.mdl')")
@@ -832,11 +857,11 @@ with sync_playwright() as playwright:
         assert page.evaluate("draftMock.saved.size") == 1
         row.get_by_role("button", name="Install", exact=True).click()
         page.wait_for_function("draftMock.installed.size === 1")
-        row.get_by_role("button", name="Delete saved copy", exact=True).click()
+        row.get_by_role("button", name="Delete skin", exact=True).click()
         page.wait_for_function("draftMock.saved.size === 0")
-        assert page.evaluate("draftMock.installed.size") == 1, "Deleting local copy removed installed game files"
+        assert page.evaluate("draftMock.installed.size") == 0, "Whole-skin delete left installed attachment entries"
         print("PASS: autosave multiple textures, rename, slots, reopen after reload, no installation, and disk-failure retry")
-        print("PASS: installed/not-installed library status, uninstall keeps draft, delete copy keeps installation")
+        print("PASS: installed/not-installed library status, uninstall keeps draft, whole-skin delete removes installation")
 
         page.evaluate("draftMock.installed.clear()")
         page.evaluate("previewTest.open('models/perpheads/weapons/attachments/rifle_eotech.mdl')")
@@ -905,6 +930,69 @@ with sync_playwright() as playwright:
         assert len({item["materialPath"] for item in shared_exports}) == 1
         print("PASS: Jarheads installs, alpha Keep/Remove/Cancel on active/all/saved installs, original draft preservation, reticle exclusion")
         print("PASS: shared VTF installation asks once and applies the same alpha choice to both materials")
+        page.evaluate("previewTest.showSkins()")
+        assert page.locator("#import-skin").is_visible()
+        share_id = page.evaluate("previewTest.draftState().id")
+        share_row = page.locator(f'.skin-item[data-draft-id="{share_id}"]')
+        share_row.get_by_role("button", name="Export skin", exact=True).click()
+        page.wait_for_function("draftMock.packageExports?.length === 1")
+        exported = page.evaluate("draftMock.packageExports[0]")
+        assert exported["command"] == "export_draft" and exported["id"] == share_id
+        assert len(exported["draft"]["textures"]) == 2
+        assert all(texture["stripAlpha"] for texture in exported["draft"]["textures"])
+        package_state = page.evaluate("previewTest.draftState()")
+        installs_before_share = page.evaluate("draftMock.calls.filter(command => command === 'install_draft').length")
+        page.evaluate("draftMock.cancelPackageExport = true")
+        share_row.get_by_role("button", name="Export skin", exact=True).click()
+        page.wait_for_function("draftMock.packageExports.length === 2")
+        page.evaluate("draftMock.cancelPackageExport = false; draftMock.failPackageExport = true")
+        share_row.get_by_role("button", name="Export skin", exact=True).click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('Simulated package export failure')")
+        page.evaluate("draftMock.failPackageExport = false; draftMock.failSave = true")
+        share_row.get_by_role("button", name="Export skin", exact=True).click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('Simulated disk failure')")
+        assert page.evaluate("draftMock.packageExports.length") == 2
+        page.evaluate("draftMock.failSave = false")
+        saved_before_import = page.evaluate("draftMock.saved.size")
+        page.locator("#import-skin").click()
+        page.wait_for_function("!document.getElementById('import-skin').disabled")
+        assert page.evaluate("draftMock.saved.size") == saved_before_import
+        page.evaluate("draftMock.failPackageImport = true")
+        page.locator("#import-skin").click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('Invalid skin package')")
+        assert page.evaluate("draftMock.saved.size") == saved_before_import
+        page.evaluate("draftMock.failPackageImport = false; draftMock.packageImport = draftMock.packageExports[0].draft")
+        page.locator("#import-skin").click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('Nothing was installed')")
+        assert page.evaluate("draftMock.saved.size") == saved_before_import + 1
+        imported_id = page.evaluate("[...draftMock.saved.keys()].at(-1)")
+        assert imported_id != share_id
+        assert page.locator(f'.skin-item[data-draft-id="{imported_id}"]').get_by_role("button", name="Open draft", exact=True).is_visible()
+        page.evaluate("""() => {
+          draftMock.packageImport = {...draftMock.packageExports[0].draft, name:'Shared backup', textures:[],
+            archivedFiles:[{root:'vmt', relative:'models/weapons/v_models/test.vmt', bytes:'dGVzdA=='}]};
+        }""")
+        page.locator("#import-skin").click()
+        page.wait_for_function("count => draftMock.saved.size === count + 2", arg=saved_before_import)
+        backup_id = page.evaluate("[...draftMock.saved.keys()].at(-1)")
+        backup_row = page.locator(f'.skin-item[data-draft-id="{backup_id}"]')
+        assert backup_row.get_by_role("button", name="Open draft", exact=True).count() == 0
+        backup_row.get_by_role("button", name="Export skin", exact=True).click()
+        page.wait_for_function("draftMock.packageExports.length === 3")
+        assert page.evaluate("draftMock.packageExports.at(-1).draft.archivedFiles.length") == 1
+        page.evaluate("""() => {
+          draftMock.customInventory = [{id:'vmt:installed.vmt', name:'Installed only', vmtPath:'installed.vmt', hasVtf:true}];
+          return previewTest.showSkins();
+        }""")
+        page.locator(".skin-item").filter(has_text="Installed only").get_by_role("button", name="Export skin", exact=True).click()
+        page.wait_for_function("draftMock.packageExports.length === 4")
+        assert page.evaluate("draftMock.packageExports.at(-1).command") == "export_custom_skin"
+        assert page.evaluate("draftMock.calls.filter(command => command === 'install_draft').length") == installs_before_share
+        assert page.evaluate("previewTest.draftState().id") == package_state["id"]
+        assert page.evaluate("previewTest.draftState().edits") == package_state["edits"]
+        page.locator("[data-library='models']").click()
+        assert page.locator("#import-skin").is_hidden()
+        print("PASS: whole-skin draft/backup/installed export, import/cancel/errors, save-before-export and no automatic installation")
         page.evaluate("draftMock.updateAvailable = '0.3.0'")
         page.locator("#updates-button").click()
         page.locator("#check-updates").click()
