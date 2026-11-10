@@ -5129,10 +5129,11 @@ dependencies = [
 
 [[package]]
 name = "texture-helper"
-version = "0.2.7"
+version = "0.3.0"
 dependencies = [
  "arboard",
  "base64 0.22.1",
+ "getrandom 0.3.4",
  "gma",
  "image",
  "regex",
@@ -5140,6 +5141,7 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-updater",

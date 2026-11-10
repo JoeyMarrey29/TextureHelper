@@ -11,8 +11,10 @@
     <header class="topbar">
       <div class="brand"><span class="brand-mark">P</span><div><strong>PERPHEADS</strong><small>TEXTURE HELPER</small></div></div>
       <button id="updates-button" type="button" class="updates-button"><strong id="app-version">Updates</strong><span id="update-status">Checking for updates...</span></button>
+      <button id="open-workshop" type="button" class="button secondary">Skin Workshop</button>
       <div class="source"><span class="source-dot"></span><span id="source-label">No content selected</span></div>
       <button id="choose-folder" class="button secondary">Choose GMod folder</button>
+      <button id="refresh-models" class="button secondary" type="button" disabled title="Rescan the selected content folder for new models">Refresh models</button>
     </header>
     <main class="layout">
       <aside class="library">
@@ -29,6 +31,13 @@
         <div id="draft-tools" class="draft-tools hidden">
           <label>Draft name<input id="draft-name" type="text" aria-label="Draft name"></label>
           <div><small id="draft-status" role="status"></small><button id="save-draft" type="button" class="button secondary">Save now</button></div>
+        </div>
+        <div id="draft-actions" class="draft-actions hidden" aria-label="Draft actions">
+          <button id="publish-draft" class="button secondary" type="button">Publish</button>
+          <button id="export-draft" class="button secondary" type="button">Export skin</button>
+          <button id="install-draft" class="button secondary" type="button">Install</button>
+          <button id="uninstall-draft" class="button secondary" type="button">Uninstall</button>
+          <button id="delete-draft" class="button danger" type="button">Delete skin</button>
         </div>
         <div class="viewport-wrap"><canvas id="viewport"></canvas><div class="view-controls" aria-label="Model views"><button type="button" data-view="default">Reset</button><button type="button" data-view="front">Front</button><button type="button" data-view="side">Side</button><button type="button" data-view="top">Top</button></div><div class="viewport-hint">Left click: select texture · Hold right click: rotate · Shift + right drag: roll · Scroll: zoom</div><div id="viewport-empty" class="viewport-empty"><span class="empty-cube">⬡</span><strong>Choose a model</strong><span>Its rendered mesh will appear here.</span></div></div>
         <div class="model-meta"><span>GMA / SOURCE</span><code id="model-origin">—</code><button id="copy-path" class="text-button" disabled>Copy path</button></div>
@@ -61,6 +70,10 @@
       </aside>
     </main>
     <div id="toast" class="toast hidden" role="status"></div>
+    <dialog id="workshop-dialog" aria-label="Skin Workshop">
+      <div class="workshop-navigation"><button id="close-workshop" type="button" class="button secondary">Back to editor</button></div>
+      <iframe id="workshop-frame" title="Skin Workshop"></iframe>
+    </dialog>
     <dialog id="export-dialog" aria-labelledby="export-dialog-title">
       <form method="dialog">
         <h2 id="export-dialog-title">Export texture</h2>

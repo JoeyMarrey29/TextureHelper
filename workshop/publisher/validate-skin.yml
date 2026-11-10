@@ -1,0 +1,29 @@
+name: Validate community skin
+on:
+  repository_dispatch:
+    types: [validate-skin]
+permissions:
+  contents: write
+concurrency:
+  group: skin-${{ github.event.client_payload.id }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.repository == 'JoeyMarrey29/TextureHelper-Workshop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: main
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Validate data without executing uploaded content
+        run: node publisher/validate.js
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VALIDATOR_SECRET: ${{ secrets.VALIDATOR_SECRET }}
+          SUBMISSION_ID: ${{ github.event.client_payload.id }}
+          RELEASE_ID: ${{ github.event.client_payload.releaseId }}

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data: https://avatars.steamstatic.com https://avatars.akamai.steamstatic.com https://avatars.fastly.steamstatic.com; connect-src ipc: http://ipc.localhost; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'">
+  <title>Skin Workshop</title>
+  <link rel="stylesheet" href="workshop.css">
+</head>
+<body>
+  <header><div><span class="eyebrow">PERPHEADS TEXTURE HELPER</span><h1>Skin Workshop</h1></div>
+    <div class="account"><img id="account-avatar" alt="Steam profile picture" referrerpolicy="no-referrer" hidden><div><span id="account">Browse without signing in</span><small id="profile-note" hidden></small></div><button id="signin">Sign in with Steam</button><button id="signout" hidden>Sign out</button></div></header>
+  <main>
+    <nav class="workshop-tabs" role="tablist" aria-label="Workshop sections">
+      <button id="tab-community" role="tab" aria-selected="true" aria-controls="community-panel" data-tab="community">Community</button>
+      <button id="tab-submissions" role="tab" aria-selected="false" aria-controls="submissions" data-tab="submissions" hidden>Pending submissions</button>
+      <button id="tab-bans" role="tab" aria-selected="false" aria-controls="moderation" data-tab="bans" hidden>Bans</button>
+    </nav>
+    <div class="toolbar"><input id="search" type="search" placeholder="Search skin, weapon or SteamID" aria-label="Search workshop"><button id="refresh">Refresh</button></div>
+    <p class="notice">Community uploads queue for automated checks, not human review, before publication. This may take a few minutes. Only download content you trust. Downloads become local drafts; nothing installs automatically.</p>
+    <p id="status" role="status">Loading workshop…</p>
+    <section id="publish" hidden aria-labelledby="publish-title">
+      <h2 id="publish-title">Publish selected draft</h2>
+      <div class="publish-layout"><img id="publish-preview" alt="Automatically captured assembly preview"><div>
+        <label>Skin title<input id="title" maxlength="80"></label>
+        <label>Description<textarea id="description" maxlength="1000" rows="3"></textarea></label>
+        <p id="publish-info"></p>
+        <p>Public uploads contain edited images, relative game paths and attachment choices. Material scripts are replaced with a basic trusted shader; advanced effects are not yet supported. Limits: 12 textures, 2048 pixels per side, 24 MiB request.</p>
+        <p id="sharing-license">By publishing, you license your texture contributions under CC BY 4.0, allowing redistribution and remixing with attribution.</p>
+        <label class="consent"><input id="consent" type="checkbox" aria-describedby="sharing-license">I have permission to publish these textures and agree to show my SteamID/profile publicly. I also agree that this upload follows all the relevant conduct rules of PERPHEADS and understand that misuse of this upload system may result in punishment from server staff and being banned from using this app.</label>
+        <button id="submit">Publish skin</button>
+        <button id="cancel-publish" class="danger" type="button">Cancel</button>
+      </div></div>
+    </section>
+    <section id="community-panel" role="tabpanel" aria-labelledby="tab-community">
+      <section id="cards" class="cards" aria-label="Community skins"></section>
+      <button id="more" hidden>Load older skins</button>
+    </section>
+    <section id="submissions" role="tabpanel" aria-labelledby="tab-submissions" hidden>
+      <h2 id="submissions-title">Your pending submissions</h2>
+      <p>Use Refresh to check queued uploads. Failed or cancelled submissions are not published. Completed uploads appear in Community. Previews become available only after validation.</p>
+      <div id="submission-list" class="cards"></div>
+    </section>
+    <section id="moderation" role="tabpanel" aria-labelledby="tab-bans" hidden>
+      <h2>Banned uploaders</h2><p>Bans prevent Workshop sign-in and publishing, not use of the local editor. Remove published skins separately. Existing downloads and GitHub caches cannot be recalled.</p>
+      <form id="ban-form" class="ban-form">
+        <label>SteamID64<input id="ban-id" inputmode="numeric" maxlength="17" required placeholder="7656119…"></label>
+        <label>Reason<input id="ban-reason" maxlength="300" required value="Workshop abuse"></label>
+        <button id="ban" type="submit">Ban uploader</button>
+      </form>
+      <div class="ban-table-wrap"><table><thead><tr><th scope="col">SteamID / profile</th><th scope="col">Reason</th><th scope="col">Banned</th><th scope="col">Actions</th></tr></thead><tbody id="ban-list"></tbody></table></div>
+      <p id="ban-empty" hidden>No banned users.</p>
+      <button id="more-bans" hidden>Load more banned users</button>
+    </section>
+  </main>
+  <dialog id="confirmation" aria-labelledby="confirmation-title">
+    <h2 id="confirmation-title">Skin Workshop</h2><p id="confirmation-message"></p>
+    <form method="dialog"><button value="cancel" class="danger">Cancel</button><button value="confirm">Confirm</button></form>
+  </dialog>
+  <script type="module" src="workshop.js"></script>
+</body>
+</html>

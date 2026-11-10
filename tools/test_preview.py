@@ -51,7 +51,7 @@ HOOKS = """
 window.previewTest = {
   THREE, createSourceMaterial, makeMaterial, makeThumbnail, resolveLoadout, slotChoices,
   supportedMaterial,
-  setSlotAttachment, setView, modelCategory, renderList, openDraft, saveDraft,
+  setSlotAttachment, setView, modelCategory, renderList, openDraft, saveDraft, stageWorkshopDraft,
   draftState() { return {id: draftSession?.id, name: draftSession?.name, status: draftSession?.status,
     selections: Object.fromEntries(slotSelections), edits: [...edits].map(([key, edit]) => ({key, png: edit.png, partPath: edit.partPath}))}; },
   async selectPart(path) {
@@ -132,6 +132,7 @@ window.previewTest = {
     libraryView = 'skins'; await refreshSkins();
   },
   enableInstall() { installAvailable = true; renderList(); },
+  draftThumbnailModel,
   async open(path) {
     models = Object.keys(attachmentData.weapons).concat(
       Object.values(attachmentData.attachments).map(info => info.model)
@@ -347,6 +348,14 @@ with sync_playwright() as playwright:
           };
           window.__TAURI__ = {core: {invoke: async (command, args) => {
             const mock = window.draftMock; mock.calls.push(command);
+            if (command === 'open_workshop') return;
+            if (command === 'workshop_stage') { mock.stagedWorkshop = args; return; }
+            if (command === 'workshop_list') return {skins:[], next:null};
+            if (command === 'workshop_pending') return null;
+            if (command === 'workshop_account') return mock.workshopConnected ? {steamId:'76561198000000000'} : {connected:false};
+            if (command === 'choose_content_folder') return 'C:\\\\test-content';
+            if (command === 'scan_content') return {root:args.root, models:[], customSkins:[],
+              archiveCount:1, modelCount:0, hasInstallRoot:true};
             if (command === 'copy_png') {
               if (mock.failCopy) throw Error('Clipboard busy');
               mock.copies.push(args.pngBase64); (mock.copyAlphaChoices ||= []).push(args.stripAlpha); return;
@@ -817,7 +826,22 @@ with sync_playwright() as playwright:
         page.evaluate("previewTest.showSkins()")
         row = page.locator(f'.skin-item[data-draft-id="{draft_id}"]')
         assert "My saved AK101" in row.inner_text()
-        row.get_by_role("button", name="Open draft", exact=True).click()
+        row.locator(".draft-thumb img").wait_for()
+        assert row.locator(".draft-thumb img").evaluate("image => image.complete && image.naturalWidth > 0")
+        page.evaluate("""async id => {
+          const draft = draftMock.saved.get(id);
+          const before = previewTest.draftState();
+          const detail = await previewTest.draftThumbnailModel(draft);
+          for (const texture of draft.textures) {
+            if (!detail.materials.some(material => material.vmtPath === texture.vmtPath && material.image === texture.png))
+              throw Error('Thumbnail is missing saved texture edits');
+          }
+          if (JSON.stringify(before) !== JSON.stringify(previewTest.draftState())) throw Error('Thumbnail changed the active editor');
+          if (!detail.meshes.length) throw Error('Draft thumbnail has no meshes');
+        }""", draft_id)
+        row.click()
+        assert row.locator("button").count() == 0
+        page.locator("#draft-actions").wait_for(state="visible")
         page.wait_for_function("previewTest.draftState().status.includes('restored')")
         restored = page.evaluate("previewTest.draftState()")
         assert restored["selections"] == {"SLOT_SIGHT": "eotech", "SLOT_MAGAZINE": None, "SLOT_STOCK": "stock_ak101"}
@@ -842,7 +866,8 @@ with sync_playwright() as playwright:
         page.evaluate("previewTest.open('models/perpheads/weapons/c_m4a1.mdl')")
         page.evaluate("previewTest.showSkins()")
         row = page.locator(f'.skin-item[data-draft-id="{draft_id}"]')
-        row.get_by_role("button", name="Open draft", exact=True).click()
+        row.focus()
+        row.press("Enter")
         page.wait_for_function("previewTest.draftState().status.includes('restored')")
         assert page.evaluate("previewTest.draftState().edits.length") == 2
         page.evaluate("previewTest.enableInstall()")
@@ -852,23 +877,25 @@ with sync_playwright() as playwright:
             page.evaluate("previewTest.setView('front')")
             page.wait_for_timeout(600)
             page.screenshot(path=str(args.screenshot.with_stem(args.screenshot.stem + "-saved-draft")))
-        row.get_by_role("button", name="Install", exact=True).click()
+        page.locator("#install-draft").click()
         page.wait_for_function("draftMock.installed.size === 1")
         page.wait_for_function("""id => document.querySelector('[data-draft-id="' + id + '"] .skin-status')
             .textContent.endsWith('Installed')""", arg=draft_id)
         page.on("dialog", lambda dialog: dialog.accept())
-        row.get_by_role("button", name="Uninstall", exact=True).click()
+        page.locator("#uninstall-draft").click()
         page.wait_for_function("draftMock.installed.size === 0")
         page.wait_for_function("""id => document.querySelector('[data-draft-id="' + id + '"] .skin-status')
             .textContent.endsWith('Not installed')""", arg=draft_id)
         assert page.evaluate("draftMock.saved.size") == 1
-        row.get_by_role("button", name="Install", exact=True).click()
+        page.locator("#install-draft").click()
         page.wait_for_function("draftMock.installed.size === 1")
-        row.get_by_role("button", name="Delete skin", exact=True).click()
+        page.locator("#delete-draft").click()
         page.wait_for_function("draftMock.saved.size === 0")
+        assert not page.locator("#draft-actions").is_visible()
         assert page.evaluate("draftMock.installed.size") == 0, "Whole-skin delete left installed attachment entries"
         print("PASS: autosave multiple textures, rename, slots, reopen after reload, no installation, and disk-failure retry")
         print("PASS: installed/not-installed library status, uninstall keeps draft, whole-skin delete removes installation")
+        print("PASS: draft-card thumbnails include saved edits without changing the editor; card click/Enter opens inspector actions")
 
         page.evaluate("draftMock.installed.clear()")
         page.evaluate("previewTest.open('models/perpheads/weapons/attachments/rifle_eotech.mdl')")
@@ -908,7 +935,7 @@ with sync_playwright() as playwright:
         assert page.evaluate("id => draftMock.saved.get(id).textures[0].png", alpha_id) == alpha_png
         page.evaluate("previewTest.showSkins()")
         row = page.locator(f'.skin-item[data-draft-id="{alpha_id}"]')
-        row.get_by_role("button", name="Install", exact=True).click()
+        page.locator("#install-draft").click()
         page.locator("#alpha-dialog").wait_for(state="visible")
         assert page.locator("#alpha-remove").evaluate("button => button === document.activeElement")
         page.locator("#alpha-keep").click()
@@ -941,7 +968,7 @@ with sync_playwright() as playwright:
         assert page.locator("#import-skin").is_visible()
         share_id = page.evaluate("previewTest.draftState().id")
         share_row = page.locator(f'.skin-item[data-draft-id="{share_id}"]')
-        share_row.get_by_role("button", name="Export skin", exact=True).click()
+        page.locator("#export-draft").click()
         page.wait_for_function("draftMock.packageExports?.length === 1")
         exported = page.evaluate("draftMock.packageExports[0]")
         assert exported["command"] == "export_draft" and exported["id"] == share_id
@@ -950,13 +977,13 @@ with sync_playwright() as playwright:
         package_state = page.evaluate("previewTest.draftState()")
         installs_before_share = page.evaluate("draftMock.calls.filter(command => command === 'install_draft').length")
         page.evaluate("draftMock.cancelPackageExport = true")
-        share_row.get_by_role("button", name="Export skin", exact=True).click()
+        page.locator("#export-draft").click()
         page.wait_for_function("draftMock.packageExports.length === 2")
         page.evaluate("draftMock.cancelPackageExport = false; draftMock.failPackageExport = true")
-        share_row.get_by_role("button", name="Export skin", exact=True).click()
+        page.locator("#export-draft").click()
         page.wait_for_function("document.getElementById('toast').textContent.includes('Simulated package export failure')")
         page.evaluate("draftMock.failPackageExport = false; draftMock.failSave = true")
-        share_row.get_by_role("button", name="Export skin", exact=True).click()
+        page.locator("#export-draft").click()
         page.wait_for_function("document.getElementById('toast').textContent.includes('Simulated disk failure')")
         assert page.evaluate("draftMock.packageExports.length") == 2
         page.evaluate("draftMock.failSave = false")
@@ -974,7 +1001,7 @@ with sync_playwright() as playwright:
         assert page.evaluate("draftMock.saved.size") == saved_before_import + 1
         imported_id = page.evaluate("[...draftMock.saved.keys()].at(-1)")
         assert imported_id != share_id
-        assert page.locator(f'.skin-item[data-draft-id="{imported_id}"]').get_by_role("button", name="Open draft", exact=True).is_visible()
+        assert page.locator(f'button.skin-item[data-draft-id="{imported_id}"]').is_visible()
         page.evaluate("""() => {
           draftMock.packageImport = {...draftMock.packageExports[0].draft, name:'Shared backup', textures:[],
             archivedFiles:[{root:'vmt', relative:'models/weapons/v_models/test.vmt', bytes:'dGVzdA=='}]};
@@ -1040,6 +1067,40 @@ with sync_playwright() as playwright:
         page.evaluate("previewTest.saveDraft()")
         assert page.evaluate("key => draftMock.saved.get(previewTest.draftState().id).textures.some(texture => texture.key === key)", key)
         print("PASS: inherited shared texture previews install every owner and persist material mappings to drafts")
+
+        page.evaluate("""async () => {
+          const draft = draftMock.saved.get(previewTest.draftState().id);
+          const before = draftMock.calls.length;
+          await previewTest.stageWorkshopDraft(draft);
+          if (draftMock.stagedWorkshop) throw Error('Signed-out user staged a publishing form');
+          if (draftMock.calls.slice(before).includes('get_draft')) throw Error('Signed-out publish opened the draft');
+          draftMock.workshopConnected = true;
+          await previewTest.stageWorkshopDraft(draft);
+          if (!draftMock.stagedWorkshop || draftMock.stagedWorkshop.id !== draft.id) throw Error('Workshop preview not staged');
+          const image = new Image(); image.src = draftMock.stagedWorkshop.preview; await image.decode();
+          if (!image.width || Math.max(image.width, image.height) > 1024) throw Error('Preview dimensions exceed the limit');
+          const captured = draftMock.stagedWorkshop;
+          draftMock.failSave = true;
+          await previewTest.stageWorkshopDraft(draft);
+          draftMock.failSave = false;
+          if (draftMock.stagedWorkshop !== captured) throw Error('Failed save staged an unreviewed preview');
+        }""")
+        print("PASS: Workshop captures a bounded preview only after opening and saving successfully")
+        page.locator("#workshop-dialog").wait_for(state="visible")
+        page.frame_locator("#workshop-frame").locator("h1").wait_for()
+        page.locator("#close-workshop").click()
+        assert not page.locator("#workshop-dialog").is_visible()
+        page.locator("#open-workshop").click()
+        assert page.locator("#workshop-dialog").is_visible()
+        page.locator("#close-workshop").click()
+        print("PASS: Workshop opens inside the editor and returns without creating another window")
+        page.locator("#choose-folder").click()
+        page.wait_for_function("() => !document.querySelector('#refresh-models').disabled")
+        scans = page.evaluate("draftMock.calls.filter(command => command === 'scan_content').length")
+        page.locator("#refresh-models").click()
+        page.wait_for_function("count => draftMock.calls.filter(command => command === 'scan_content').length === count + 1", arg=scans)
+        page.wait_for_function("() => !document.querySelector('#refresh-models').disabled")
+        print("PASS: Refresh models rescans the selected folder without opening the folder picker")
 
         if args.screenshot:
             for gun, sight, suffix in (("g36", "", "-g36"), ("m4a1", "", "-irons-up"), ("m4a1", "eotech", "-irons-down")):

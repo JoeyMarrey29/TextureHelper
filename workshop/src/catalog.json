@@ -1,0 +1,4343 @@
+{
+  "materials": {
+    "models/perpheads/weapons/attachments/pistol_flashlight.mdl|materials/models/weapons/v_models/glock20/glock20color_black.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/glock20/glock20color_black.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/pistol_lam.mdl|materials/models/jarheads/weapons/attachments/pistol_lam/lam.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/pistol_lam/lam.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/pistol_rail.mdl|materials/models/jarheads/weapons/attachments/pistol_rail/rail_diffuse.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/pistol_rail/rail_diffuse.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/pistol_reflex.mdl|materials/models/jarheads/weapons/attachments/pistol_reflex/kascope08_d.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/pistol_reflex/kascope08_d.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/rifle_acog.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/acog/acog.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/acog/acog.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/rifle_acog.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/lens/rt.vmt": {
+      "height": 256,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/lens/rtplaceholder.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/attachments/rifle_aimpoint.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/aimpoint/aim1.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/aimpoint/aim1.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/rifle_anpeq.mdl|materials/models/jarheads/weapons/attachments/rifle_anpeq15/an-peq15.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_anpeq15/an-peq15.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/rifle_carryhandle.mdl|materials/models/weapons/v_models/m4/diffuse.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m4/diffuse.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/rifle_compensator.mdl|materials/models/weapons/v_models/g36c/c_grip.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/g36c/c_grip.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/rifle_elcan.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/elcan/elcan.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/elcan/elcan.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/rifle_elcan.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/lens/rt.vmt": {
+      "height": 256,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/lens/rtplaceholder.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/attachments/rifle_eotech.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/eotech/eotech553.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/eotech/eotech553.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/rifle_eotech2.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/doctor/frame1.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/doctor/frame1.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/rifle_flashlight.mdl|materials/models/weapons/v_models/glock20/glock20color_black.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/glock20/glock20color_black.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/rifle_flip_front.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/flip/sights.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/flip/sights.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/rifle_flip_front2.mdl|materials/models/weapons/v_models/m82/m82.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m82/m82.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/rifle_flip_rear.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/flip/body.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/flip/body.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/rifle_flip_rear2.mdl|materials/models/weapons/v_models/m82/m82.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m82/m82.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/rifle_iron_crown.mdl|materials/models/weapons/v_models/m4/diffuse.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m4/diffuse.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/rifle_microdot.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/microdot/larue ecos.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/microdot/larue ecos.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/rifle_microdot.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/microdot/t-1_d.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/microdot/t-1_d.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/rifle_rail_1.mdl|materials/models/jarheads/weapons/attachments/rifle_rails/rifle_rail_1/newscope.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_rails/rifle_rail_1/newscope.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/rifle_rail_2.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/rifle_reddot.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/reddot/cmore_d.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/reddot/cmore_d.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/rifle_reflex.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/reflex/trijiconreflex_reflex_material.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/reflex/trijiconreflex_reflex_material.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl|materials/models/weapons/v_models/m4/diffuse.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m4/diffuse.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/scope_atacr.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/lens/rt.vmt": {
+      "height": 256,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/lens/rtplaceholder.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/attachments/scope_atacr.mdl|materials/models/jarheads/weapons/attachments/scopes/atacr/scope.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/scopes/atacr/scope.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/scope_l96.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/lens/rt.vmt": {
+      "height": 256,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/lens/rtplaceholder.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/attachments/scope_l96.mdl|materials/models/jarheads/weapons/attachments/scopes/l96/l96_scope.vmt": {
+      "height": 2048,
+      "vtf": "materials/models/jarheads/weapons/attachments/scopes/l96/l96_scope.vtf",
+      "width": 2048
+    },
+    "models/perpheads/weapons/attachments/scope_pm2.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/lens/rt.vmt": {
+      "height": 256,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/lens/rtplaceholder.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/attachments/scope_pm2.mdl|materials/models/jarheads/weapons/attachments/scopes/l96/l96_scope.vmt": {
+      "height": 2048,
+      "vtf": "materials/models/jarheads/weapons/attachments/scopes/l96/l96_scope.vtf",
+      "width": 2048
+    },
+    "models/perpheads/weapons/attachments/scope_pm2.mdl|materials/models/jarheads/weapons/attachments/scopes/scope_rail_2/snip_ssg08_scope.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/attachments/scopes/scope_rail_2/snip_ssg08_scope.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/scope_rail_1.mdl|materials/models/jarheads/weapons/attachments/scopes/schmidt/diffuse.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/attachments/scopes/schmidt/diffuse.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/scope_rail_2.mdl|materials/models/jarheads/weapons/attachments/scopes/scope_rail_2/snip_ssg08_scope.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/attachments/scopes/scope_rail_2/snip_ssg08_scope.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/scope_schmidt.mdl|materials/models/jarheads/weapons/attachments/rifle_sights/lens/rt.vmt": {
+      "height": 256,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_sights/lens/rtplaceholder.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/attachments/scope_schmidt.mdl|materials/models/jarheads/weapons/attachments/scopes/schmidt/diffuse.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/attachments/scopes/schmidt/diffuse.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_ak101.mdl|materials/models/weapons/v_models/ak101/wood.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/ak101/wood.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/stock_ak47.mdl|materials/models/weapons/v_models/ak47/stockmap.vmt": {
+      "height": 256,
+      "vtf": "materials/models/weapons/v_models/ak47/stockmap.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/stock_ak74.mdl|materials/models/weapons/v_models/ak74/gripsmag.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ak74/gripsmag.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_g36.mdl|materials/models/weapons/v_models/g36c/stock.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/g36c/stock.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_g3a3.mdl|materials/models/weapons/v_models/g3a3/stockbit.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/g3a3/stockbit.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_m16.mdl|materials/models/weapons/v_models/m16a2/fullstock.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m16a2/fullstock.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_m4a1.mdl|materials/models/weapons/v_models/m4/diffuse.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m4/diffuse.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_mac11.mdl|materials/models/weapons/v_models/mac11/map2_wire.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mac11/map2_wire.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_mp5.mdl|materials/models/weapons/v_models/mp5/une.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp5/une.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_mp5_2.mdl|materials/models/jarheads/weapons/attachments/stocks/mp5_stock_2/ret_9beta.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/stocks/mp5_stock_2/ret_9beta.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_mp5k.mdl|materials/models/weapons/v_models/mp5k/pdw_map.vmt": {
+      "height": 256,
+      "vtf": "materials/models/weapons/v_models/mp5k/pdw_map.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/stock_mp7.mdl|materials/models/weapons/v_models/mp7/t2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp7/t2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_mp9.mdl|materials/models/weapons/v_models/mp9/t4.vmt": {
+      "height": 256,
+      "vtf": "materials/models/weapons/v_models/mp9/t4.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_sako92.mdl|materials/models/weapons/v_models/sako_rk95/sako_rk95_parts.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/sako_rk95/sako_rk95_parts.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_scarl.mdl|materials/models/weapons/v_models/scarl/stock.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/scarl/stock.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/stock_sg550.mdl|materials/models/weapons/v_models/sg550/foremap.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/sg550/foremap.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_sg550.mdl|materials/models/weapons/v_models/sg550/sg-mesh2.vmt": {
+      "height": 64,
+      "vtf": "materials/models/weapons/v_models/sg550/sg-mesh2.vtf",
+      "width": 64
+    },
+    "models/perpheads/weapons/attachments/stock_spas12.mdl|materials/models/weapons/v_models/spas12/bugel.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/spas12/bugel.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/stock_sr25.mdl|materials/models/weapons/v_models/sr-25/sr25.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/sr-25/sr25.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_ump45.mdl|materials/models/weapons/v_models/ump45/mag.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ump45/mag.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/stock_uzi.mdl|materials/models/weapons/v_models/uzi/stocketc_map.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/uzi/stocketc_map.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/suppressor_1022.mdl|materials/models/jarheads/weapons/attachments/pistol_suppressors/usp_sil.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/pistol_suppressors/usp_sil.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/suppressor_1025.mdl|materials/models/jarheads/weapons/attachments/pistol_suppressors/w_sup_02_dm.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/pistol_suppressors/w_sup_02_dm.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/suppressor_114323.mdl|materials/models/jarheads/weapons/attachments/pistol_suppressors/sila.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/pistol_suppressors/sila.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/suppressor_54539.mdl|materials/models/jarheads/weapons/attachments/rifle_suppressors/suppressor_54539/pbs5.vmt": {
+      "height": 256,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_suppressors/suppressor_54539/pbs5.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/suppressor_55645.mdl|materials/models/jarheads/weapons/attachments/rifle_suppressors/silencer_col.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_suppressors/silencer_col.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/suppressor_76239.mdl|materials/models/jarheads/weapons/attachments/rifle_suppressors/suppressor_76239/pbs1.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_suppressors/suppressor_76239/pbs1_d.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/attachments/suppressor_76251.mdl|materials/models/jarheads/weapons/attachments/rifle_suppressors/suppressor_76251/dsrdiffuse.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/rifle_suppressors/suppressor_76251/dsrdiffuse.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/suppressor_76517.mdl|materials/models/jarheads/weapons/attachments/pistol_suppressors/suppressor_76517/gucci.vmt": {
+      "height": 256,
+      "vtf": "materials/models/jarheads/weapons/attachments/pistol_suppressors/suppressor_76517/gucci.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/attachments/suppressor_917.mdl|materials/models/jarheads/weapons/attachments/pistol_suppressors/silencemap.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/attachments/pistol_suppressors/silencemap.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/suppressor_918.mdl|materials/models/jarheads/weapons/attachments/pistol_suppressors/suppressor_918/sil.vmt": {
+      "height": 256,
+      "vtf": "materials/models/jarheads/weapons/attachments/pistol_suppressors/suppressor_918/sil.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/attachments/suppressor_919.mdl|materials/models/weapons/v_models/m9/m9_1.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m9/m9_1.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_590.mdl|materials/models/weapons/v_models/590/mossberg.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/590/mossberg.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_590.mdl|materials/models/weapons/v_models/m3/12gauge.vmt": {
+      "height": 256,
+      "vtf": "materials/models/weapons/v_models/m3/12gauge.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/c_590.mdl|materials/models/weapons/v_models/m3/map1.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map1.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_590.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_605.mdl|materials/models/weapons/v_models/605/rev_map1.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/605/rev_map1.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_605.mdl|materials/models/weapons/v_models/605/rev_map2.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/605/rev_map2.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_870.mdl|materials/models/weapons/v_models/870/uvmap.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/870/uvmap.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_870.mdl|materials/models/weapons/v_models/m3/12gauge.vmt": {
+      "height": 256,
+      "vtf": "materials/models/weapons/v_models/m3/12gauge.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/c_870.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_870_short.mdl|materials/models/weapons/v_models/870/uvmap.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/870/uvmap.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_870_short.mdl|materials/models/weapons/v_models/m3/12gauge.vmt": {
+      "height": 256,
+      "vtf": "materials/models/weapons/v_models/m3/12gauge.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/c_870_short.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_ak101.mdl|materials/models/weapons/v_models/ak101/grip.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/ak101/grip.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_ak101.mdl|materials/models/weapons/v_models/ak101/mag.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/ak101/mag.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_ak101.mdl|materials/models/weapons/v_models/ak101/receiver.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/ak101/receiver.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_ak101.mdl|materials/models/weapons/v_models/ak101/sites.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/ak101/sites.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_ak101.mdl|materials/models/weapons/v_models/ak101/wood.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/ak101/wood.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_ak47.mdl|materials/models/weapons/v_models/ak47/frontmap.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ak47/frontmap.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_ak47.mdl|materials/models/weapons/v_models/ak47/recmap.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ak47/recmap.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_ak74u.mdl|materials/models/weapons/v_models/ak74/gripsmag.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ak74/gripsmag.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_ak74u.mdl|materials/models/weapons/v_models/ak74/rec.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ak74/rec.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_anaconda.mdl|materials/models/weapons/v_models/anaconda/barrel.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/anaconda/barrel.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_anaconda.mdl|materials/models/weapons/v_models/anaconda/frame.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/anaconda/frame.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_anaconda.mdl|materials/models/weapons/v_models/anaconda/grip.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/anaconda/grip.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_as50.mdl|materials/models/weapons/v_models/as50/mag.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/as50/mag.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_as50.mdl|materials/models/weapons/v_models/as50/main.vmt": {
+      "height": 2048,
+      "vtf": "materials/models/weapons/v_models/as50/main.vtf",
+      "width": 2048
+    },
+    "models/perpheads/weapons/c_auga3.mdl|materials/models/weapons/v_models/auga3/map1.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/auga3/map1.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_auga3.mdl|materials/models/weapons/v_models/auga3/map2.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/auga3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_c2.mdl|materials/models/jarheads/weapons/c_weapons/c2/c2detonator_text.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/c2/c2clacker_diffuse.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_deagle.mdl|materials/models/weapons/v_models/deserteagle/deserteagle_1.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/deserteagle/deserteagle_1.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_deagle.mdl|materials/models/weapons/v_models/deserteagle/deserteagle_2.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/deserteagle/deserteagle_2.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_doublebarrel.mdl|materials/models/weapons/v_models/dbarrel/doubleba.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/dbarrel/dif.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_ext.mdl|materials/models/weapons/v_models/ext/cone.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ext/ext.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_ext.mdl|materials/models/weapons/v_models/ext/ext.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ext/ext.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_ext.mdl|materials/models/weapons/v_models/ext/metal.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ext/ext.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_famas.mdl|materials/models/weapons/v_models/famas/backmap.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/famas/backmap.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_famas.mdl|materials/models/weapons/v_models/famas/frontmap.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/famas/frontmap.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_famas.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_g36.mdl|materials/models/weapons/v_models/g36c/c_grip.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/g36c/c_grip.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_g36.mdl|materials/models/weapons/v_models/g36c/c_rail.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/g36c/c_rail_no_acog.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_g36.mdl|materials/models/weapons/v_models/g36c/frame.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/g36c/frame.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_g36.mdl|materials/models/weapons/v_models/g36c/raildelees.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/g36c/raildelees.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_g36.mdl|materials/models/weapons/v_models/g36c/stock.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/g36c/stock.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_g3a3.mdl|materials/models/weapons/v_models/g3a3/recbits.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/g3a3/recbits.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_g3a3.mdl|materials/models/weapons/v_models/g3a3/stockbit.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/g3a3/stockbit.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_g3a3.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_glock17.mdl|materials/models/weapons/v_models/glock17/internal_uv.vmt": {
+      "height": 256,
+      "vtf": "materials/models/weapons/v_models/glock17/internal_uv.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/c_glock17.mdl|materials/models/weapons/v_models/glock17/rec_uv.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/glock17/rec_uv.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_glock17.mdl|materials/models/weapons/v_models/glock17/slide_uv.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/glock17/slide_uv.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_glock18.mdl|materials/models/weapons/v_models/glock18/frame.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/glock18/frame.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_glock18.mdl|materials/models/weapons/v_models/glock18/slide.vmt": {
+      "height": 256,
+      "vtf": "materials/models/weapons/v_models/glock18/slide.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_glock20.mdl|materials/models/weapons/v_models/glock20/glock20color_black.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/glock20/glock20color_black.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_katana.mdl|materials/models/weapons/v_models/katana/handle.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/katana/katana.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_katana.mdl|materials/models/weapons/v_models/katana/metal.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/katana/katana.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_l115a3.mdl|materials/models/weapons/v_models/l115a3/map4.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/l115a3/map4.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_l115a3.mdl|materials/models/weapons/v_models/l115a3/map5.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/l115a3/map5.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_l85.mdl|materials/models/weapons/v_models/l85/grip.vmt": {
+      "height": 256,
+      "vtf": "materials/models/weapons/v_models/l85/grip.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_l85.mdl|materials/models/weapons/v_models/l85/rec.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/l85/rec.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_l85.mdl|materials/models/weapons/v_models/l85/uvf.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/l85/uvben.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_l85.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_luger.mdl|materials/models/weapons/v_models/luger/frame.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/luger/v_luger_bottom.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_luger.mdl|materials/models/weapons/v_models/luger/top.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/luger/v_luger_top.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_luger.mdl|materials/models/weapons/v_models/mac11/map3_wire2.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_m14.mdl|materials/models/weapons/v_models/m14/m14_1.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m14/m14_1.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m14.mdl|materials/models/weapons/v_models/m14/m14_2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m14/m14_2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m14.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m16.mdl|materials/models/weapons/v_models/m16a2/rec.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m16a2/rec.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m16.mdl|materials/models/weapons/v_models/m4/accyuv.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m4/accyuv.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_m16.mdl|materials/models/weapons/v_models/sr-25/sr25.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/sr-25/sr25.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m19.mdl|materials/models/weapons/v_models/m19/frame.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m19/framesilv.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m1911.mdl|materials/models/weapons/v_models/1911/1911.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/1911/1911.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m24.mdl|materials/models/weapons/v_models/m24/m24_body.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m24/m24_body.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m24.mdl|materials/models/weapons/v_models/m24/m24_parts.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m24/m24_parts.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m26c.mdl|materials/models/jarheads/weapons/m26c/m26c.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/m26c/m26c.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m29.mdl|materials/models/weapons/v_models/m29/sw629_maps.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m29/sw629_maps_wooden.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m3.mdl|materials/models/weapons/v_models/m3/12gauge.vmt": {
+      "height": 256,
+      "vtf": "materials/models/weapons/v_models/m3/12gauge.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/c_m3.mdl|materials/models/weapons/v_models/m3/map1.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map1.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m3.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m4a1.mdl|materials/models/weapons/v_models/m4/accyuv.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m4/accyuv.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_m4a1.mdl|materials/models/weapons/v_models/m4/diffuse.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m4/diffuse.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m67.mdl|materials/models/weapons/v_models/m67/m67.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m67/m67.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_m68.mdl|materials/models/weapons/v_models/m67/m68.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m67/m68.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_m69.mdl|materials/models/weapons/v_models/m67/m69.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m67/m69.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_m82.mdl|materials/models/weapons/v_models/m82/m82.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m82/m82.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m84.mdl|materials/models/weapons/v_models/m84/flash_uv.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m84/flash_uv.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m9.mdl|materials/models/weapons/v_models/m9/frame.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m9/frame.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_m9.mdl|materials/models/weapons/v_models/m9/slide.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m9/slide.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mac11.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mac11.mdl|materials/models/weapons/v_models/mac11/map1_wire.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mac11/map1_wire.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mac11.mdl|materials/models/weapons/v_models/mac11/map2_wire.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mac11/map2_wire.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mac11.mdl|materials/models/weapons/v_models/mac11/map3_wire2.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_machete.mdl|materials/models/weapons/v_models/gerber_gator/gerber_gator.vmt": {
+      "height": 256,
+      "vtf": "materials/models/weapons/v_models/gerber_gator/gerber_gator.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_makarov.mdl|materials/models/weapons/v_models/makarov/grip.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/makarov/grip.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_makarov.mdl|materials/models/weapons/v_models/makarov/main.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/makarov/main.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_makarov.mdl|materials/models/weapons/v_models/makarov/sights.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/makarov/sights.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_mp5.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mp5.mdl|materials/models/weapons/v_models/mp5/deux.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp5/deux.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mp5.mdl|materials/models/weapons/v_models/mp5/une.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp5/une.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mp510.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mp510.mdl|materials/models/weapons/v_models/mp5/deux.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp5/deux.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mp510.mdl|materials/models/weapons/v_models/mp5/une.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp5/une.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mp510.mdl|materials/models/weapons/v_models/mp510/body.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp510/body.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mp510.mdl|materials/models/weapons/v_models/mp510/grip.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/mp510/grip.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_mp5k.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mp5k.mdl|materials/models/weapons/v_models/mp5/une.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp5/une.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mp5k.mdl|materials/models/weapons/v_models/mp5k/main_map.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp5k/main_map.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mp5k.mdl|materials/models/weapons/v_models/mp5k/pdw_map.vmt": {
+      "height": 256,
+      "vtf": "materials/models/weapons/v_models/mp5k/pdw_map.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_mp5k.mdl|materials/models/weapons/v_models/mp5k/short_map.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/mp5k/short_map.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_mp7.mdl|materials/models/weapons/v_models/mp7/t1.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp7/t1.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mp7.mdl|materials/models/weapons/v_models/mp7/t2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp7/t2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mp7.mdl|materials/models/weapons/v_models/mp7/t3.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/mp7/t3.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_mp7.mdl|materials/models/weapons/v_models/mp7/t4.vmt": {
+      "height": 128,
+      "vtf": "materials/models/weapons/v_models/mp7/t4.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/c_mp7.mdl|materials/models/weapons/v_models/mp7/t5.vmt": {
+      "height": 128,
+      "vtf": "materials/models/weapons/v_models/mp7/t5.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_mp9.mdl|materials/models/weapons/v_models/mp9/t1.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp9/t1.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_mp9.mdl|materials/models/weapons/v_models/mp9/t2.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/mp9/t2.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_mp9.mdl|materials/models/weapons/v_models/ump45/raildelees.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/ump45/raildelees.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_ots33.mdl|materials/models/weapons/v_models/ots-33/ots33_base.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ots-33/ots33_base.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_ots33.mdl|materials/models/weapons/v_models/ots-33/ots33_slide.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ots-33/ots33_slide.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_p226.mdl|materials/models/weapons/v_models/p226/sigp228_done.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/p226/tub_p228.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_p99.mdl|materials/models/weapons/v_models/p99/gun_silver.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/p99/gun_silver.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_pineapple.mdl|materials/models/weapons/v_models/m67/m67.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m67/m67.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_pineapple.mdl|materials/models/weapons/v_models/pineapple/mk2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/pineapple/mk2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_pineapple2.mdl|materials/models/weapons/v_models/m67/m68.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m67/m68.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_pineapple2.mdl|materials/models/weapons/v_models/pineapple/mk2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/pineapple/mk2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_ppk.mdl|materials/models/weapons/v_models/ppk/ppk.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/ppk/ppk.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_python.mdl|materials/models/weapons/v_models/python/1.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/python/1.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_rbull.mdl|materials/models/weapons/v_models/rbull/barrel.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/rbull/barrel.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_rbull.mdl|materials/models/weapons/v_models/rbull/body.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/rbull/body.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_sako92.mdl|materials/models/weapons/v_models/sako_rk95/sako_rk95_base.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/sako_rk95/sako_rk95_base.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_sako92.mdl|materials/models/weapons/v_models/sako_rk95/sako_rk95_parts.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/sako_rk95/sako_rk95_parts.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_sawedoff.mdl|materials/models/weapons/v_models/dbarrel/doubleba.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/dbarrel/dif.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_scarl.mdl|materials/models/weapons/v_models/m4/accyuv.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m4/accyuv.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_scarl.mdl|materials/models/weapons/v_models/scarl/body.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/scarl/body.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_sg550.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_sg550.mdl|materials/models/weapons/v_models/sg550/foremap.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/sg550/foremap.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_sg550.mdl|materials/models/weapons/v_models/sg550/recevier.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/sg550/recevier.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_sg550.mdl|materials/models/weapons/v_models/sg550/sg-mesh1.vmt": {
+      "height": 64,
+      "vtf": "materials/models/weapons/v_models/sg550/sg-mesh1.vtf",
+      "width": 64
+    },
+    "models/perpheads/weapons/c_spas12.mdl|materials/models/weapons/v_models/m3/12gauge.vmt": {
+      "height": 256,
+      "vtf": "materials/models/weapons/v_models/m3/12gauge.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/c_spas12.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_spas12.mdl|materials/models/weapons/v_models/spas12/barrel.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/spas12/barrel.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_spas12.mdl|materials/models/weapons/v_models/spas12/base.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/spas12/base.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_spas12.mdl|materials/models/weapons/v_models/spas12/bugel.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/spas12/bugel.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_spas12.mdl|materials/models/weapons/v_models/spas12/grip.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/spas12/grip.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_spas12.mdl|materials/models/weapons/v_models/spas12/poly_wastage.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/spas12/poly_wastage.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_spas12.mdl|materials/models/weapons/v_models/spas12/pump.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/spas12/pump.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_sr25.mdl|materials/models/weapons/v_models/sr-25/sr25.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/sr-25/sr25.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_sw500.mdl|materials/models/weapons/v_models/sw500/saw500_diffuse.vmt": {
+      "height": 2048,
+      "vtf": "materials/models/weapons/v_models/sw500/saw500_diffuse.vtf",
+      "width": 2048
+    },
+    "models/perpheads/weapons/c_ties.mdl|materials/models/weapons/v_models/ties/ties.vmt": {
+      "height": 16,
+      "vtf": "materials/models/weapons/v_models/ties/ties.vtf",
+      "width": 16
+    },
+    "models/perpheads/weapons/c_ump45.mdl|materials/models/weapons/v_models/ump45/mag.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ump45/mag.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_ump45.mdl|materials/models/weapons/v_models/ump45/raildelees.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/ump45/raildelees.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_ump45.mdl|materials/models/weapons/v_models/ump45/reciever.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ump45/reciever.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_ump45.mdl|materials/models/weapons/v_models/ump45/sights.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/ump45/sights.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_usp.mdl|materials/models/weapons/v_models/usp/usp_map1.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/usp/usp_map1.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_usp.mdl|materials/models/weapons/v_models/usp/usp_map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/usp/usp_map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_usp45ct.mdl|materials/models/weapons/v_models/usp45ct/frame.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/usp45ct/frame.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_usp45ct.mdl|materials/models/weapons/v_models/usp45ct/slide.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/usp45ct/slide.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_uzi.mdl|materials/models/weapons/v_models/m3/map2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m3/map2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_uzi.mdl|materials/models/weapons/v_models/uzi/gripetcmap.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/uzi/gripetcmap.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_uzi.mdl|materials/models/weapons/v_models/uzi/mainmap.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/uzi/mainmap.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_uzi.mdl|materials/models/weapons/v_models/uzi/stocketc_map.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/uzi/stocketc_map.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_weapons/c_baseballbat.mdl|materials/models/jarheads/weapons/c_weapons/baseballbat/baseballbat.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/baseballbat/baseballbat.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_baton.mdl|materials/models/jarheads/weapons/c_weapons/baton/baton.vmt": {
+      "height": 64,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/baton/baton.vtf",
+      "width": 64
+    },
+    "models/perpheads/weapons/c_weapons/c_binoculars.mdl|materials/models/jarheads/weapons/c_weapons/binoculars/binoculars.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/binoculars/binoculars.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_binoculars.mdl|materials/models/jarheads/weapons/c_weapons/binoculars/lens.vmt": {
+      "height": 64,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/binoculars/lens.vtf",
+      "width": 64
+    },
+    "models/perpheads/weapons/c_weapons/c_binoculars.mdl|materials/models/jarheads/weapons/c_weapons/binoculars/steel.vmt": {
+      "height": 64,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/binoculars/steel.vtf",
+      "width": 64
+    },
+    "models/perpheads/weapons/c_weapons/c_candycane.mdl|materials/models/jarheads/weapons/c_weapons/baseballbat/candycane.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/baseballbat/candycane.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_confetti.mdl|materials/models/jarheads/weapons/c_weapons/confetti/cannon.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/confetti/cannon.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_defibrillator.mdl|materials/models/jarheads/weapons/c_weapons/defibrillator/defibrillator.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/defibrillator/defibrillator.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_elf.mdl|materials/models/jarheads/weapons/c_weapons/elf/elf.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/elf/elf.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_elf2.mdl|materials/models/jarheads/weapons/c_weapons/elf/elf2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/elf/elf2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_elf3.mdl|materials/models/jarheads/weapons/c_weapons/elf/elf_3/hands.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/elf/elf_3/hands.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_weapons/c_elf3.mdl|materials/models/jarheads/weapons/c_weapons/elf/elf_3/jeans_1.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/elf/elf_3/jeans_1.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_weapons/c_elf3.mdl|materials/models/jarheads/weapons/c_weapons/elf/elf_3/legs.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/elf/elf_3/legs.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_elf3.mdl|materials/models/jarheads/weapons/c_weapons/elf/elf_3/male_14a.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/elf/elf_3/male_14a.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_elf3.mdl|materials/models/jarheads/weapons/c_weapons/elf/elf_3/neck_14.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/elf/elf_3/neck_14.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_elf3.mdl|materials/models/jarheads/weapons/c_weapons/elf/elf_3/socks_1.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/elf/elf_3/socks_1.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_weapons/c_elf3.mdl|materials/models/jarheads/weapons/c_weapons/elf/elf_3/wifebeater.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/elf/elf_3/wifebeater.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_weapons/c_elf4.mdl|materials/models/jarheads/weapons/c_weapons/elf/elf_4/nose.vmt": {
+      "height": 32,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/elf/elf_4/red.vtf",
+      "width": 32
+    },
+    "models/perpheads/weapons/c_weapons/c_elf4.mdl|materials/models/jarheads/weapons/c_weapons/elf/elf_4/sweater.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/elf/elf_4/sweater.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_firehose.mdl|materials/models/jarheads/weapons/c_weapons/firehose/firehose.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/firehose/firehose.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_firehose.mdl|materials/models/jarheads/weapons/c_weapons/firehose/plastic.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/firehose/firehose.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_first_aid.mdl|materials/models/jarheads/weapons/c_weapons/first_aid_kit/box.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/first_aid_kit/box.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_first_aid.mdl|materials/models/jarheads/weapons/c_weapons/first_aid_kit/interior.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/first_aid_kit/interior.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_gingerbread24.mdl|materials/models/jarheads/weapons/c_weapons/gingerbread24/gingerbread.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/gingerbread24/gingerbread.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_hammer.mdl|materials/models/jarheads/weapons/c_weapons/hammer/handle.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/hammer/hammer.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_hammer.mdl|materials/models/jarheads/weapons/c_weapons/hammer/head.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/hammer/hammer.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_handcuffs.mdl|materials/models/jarheads/weapons/c_weapons/handcuffs/handcuffs.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/handcuffs/handcuffs.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_hatchet.mdl|materials/models/jarheads/weapons/c_weapons/hatchet/handle.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/hatchet/hatchet.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_hatchet.mdl|materials/models/jarheads/weapons/c_weapons/hatchet/head.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/hatchet/hatchet.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_key.mdl|materials/models/jarheads/weapons/c_weapons/key/carkey.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/key/carkey.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_key.mdl|materials/models/jarheads/weapons/c_weapons/key/key.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/key/key.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_key.mdl|materials/models/jarheads/weapons/c_weapons/key/ring.vmt": {
+      "height": 64,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/key/ring.vtf",
+      "width": 64
+    },
+    "models/perpheads/weapons/c_weapons/c_knife.mdl|materials/models/jarheads/weapons/c_weapons/knife/blade.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/knife/blade.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_knife.mdl|materials/models/jarheads/weapons/c_weapons/knife/handle.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/knife/handle.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_meat_cleaver.mdl|materials/models/jarheads/weapons/c_weapons/meat_cleaver/blade.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/meat_cleaver/meat_cleaver.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_meat_cleaver.mdl|materials/models/jarheads/weapons/c_weapons/meat_cleaver/handle.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/meat_cleaver/meat_cleaver.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_nutcracker.mdl|materials/models/jarheads/weapons/c_weapons/nutcracker/nutcracker.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/nutcracker/nutcracker.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_penguin.mdl|materials/models/jarheads/weapons/c_weapons/penguin/penguin.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/penguin/penguin_diffuse.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_weapons/c_pick.mdl|materials/models/jarheads/weapons/c_weapons/pick/pick.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/pick/pick.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_weapons/c_santa25doll.mdl|materials/models/jarheads/weapons/c_weapons/santa25doll/body.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/santa25doll/body.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_santa25doll.mdl|materials/models/jarheads/weapons/c_weapons/santa25doll/head.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/santa25doll/head.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_shovel.mdl|materials/models/jarheads/weapons/c_weapons/shovel/c_shovel.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/shovel/c_shovel.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_snowball.mdl|materials/models/jarheads/weapons/c_weapons/snowball/snowball.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/snowball/snowball.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/c_weapons/c_ticket_book.mdl|materials/models/jarheads/weapons/c_weapons/ticket_book/paper.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/ticket_book/paper.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/c_weapons/c_ticket_book.mdl|materials/models/jarheads/weapons/c_weapons/ticket_book/steel.vmt": {
+      "height": 64,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/ticket_book/steel.vtf",
+      "width": 64
+    },
+    "models/perpheads/weapons/c_weapons/c_ticket_book.mdl|materials/models/jarheads/weapons/c_weapons/ticket_book/ticket_book.vmt": {
+      "height": 512,
+      "vtf": "materials/models/jarheads/weapons/c_weapons/ticket_book/ticket_book.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/magazines/1022_12.mdl|materials/models/weapons/v_models/p99/mag.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/p99/mag.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/magazines/1022_13.mdl|materials/models/weapons/v_models/usp/usp_map1.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/usp/usp_map1.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/1022_13_2.mdl|materials/models/weapons/v_models/p226/sigp228_done.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/p226/tub_p228.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/1025_15.mdl|materials/models/weapons/v_models/glock20/glock20color_black.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/glock20/glock20color_black.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/1025_15.mdl|materials/models/weapons/v_models/mac11/map3_wire.vmt": {
+      "height": 8,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire2.vtf",
+      "width": 8
+    },
+    "models/perpheads/weapons/magazines/1025_30.mdl|materials/models/weapons/v_models/mp510/new_clip.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/mp510/new_clip.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/magazines/114323_10.mdl|materials/models/weapons/v_models/usp45ct/mag.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/usp45ct/mag.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/magazines/114323_25.mdl|materials/models/weapons/v_models/ump45/mag.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ump45/mag.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/114323_7.mdl|materials/models/weapons/v_models/1911/1911.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/1911/1911.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/12733_7.mdl|materials/models/weapons/v_models/deserteagle/deserteagle_2.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/deserteagle/deserteagle_2.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/magazines/12799_10.mdl|materials/models/weapons/v_models/m82/m82.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/m82/m82.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/12799_10_2.mdl|materials/models/weapons/v_models/as50/mag.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/as50/mag.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/4630_20.mdl|materials/models/weapons/v_models/mp7/t2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp7/t2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/4630_40.mdl|materials/models/weapons/v_models/mp7/40mag.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/mp7/40mag.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/magazines/4630_40.mdl|materials/models/weapons/v_models/mp7/mp7_01.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp7/mp7_01.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/54539_30.mdl|materials/models/weapons/v_models/ak74/gripsmag.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ak74/gripsmag.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/55645_25.mdl|materials/models/weapons/v_models/famas/backmap.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/famas/backmap.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/55645_30.mdl|materials/models/weapons/v_models/m4/diffuse.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m4/diffuse.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/55645_30_2.mdl|materials/models/weapons/v_models/g36c/mag.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/g36c/mag.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/magazines/55645_30_3.mdl|materials/models/weapons/v_models/sg550/foremap.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/sg550/foremap.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/55645_30_4.mdl|materials/models/weapons/v_models/ak101/ak556mag.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/ak101/ak556mag.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/magazines/76239_30.mdl|materials/models/weapons/v_models/ak47/recmap.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ak47/recmap.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/76239_30_2.mdl|materials/models/weapons/v_models/sako_rk95/sako_rk95_parts.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/sako_rk95/sako_rk95_parts.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/76251_10.mdl|materials/models/weapons/v_models/sr-25/sr25.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/sr-25/sr25.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/76251_20.mdl|materials/models/weapons/v_models/m14/m14_2.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m14/m14_2.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/76251_20_2.mdl|materials/models/weapons/v_models/g3a3/stockbit.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/g3a3/stockbit.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/76517_7.mdl|materials/models/weapons/v_models/mac11/map3_wire.vmt": {
+      "height": 8,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire2.vtf",
+      "width": 8
+    },
+    "models/perpheads/weapons/magazines/76517_7.mdl|materials/models/weapons/v_models/ppk/ppk.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/ppk/ppk.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/magazines/85870_5.mdl|materials/models/weapons/v_models/l115a3/map4.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/l115a3/map4.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/917_32.mdl|materials/models/weapons/v_models/mac11/map2_wire.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mac11/map2_wire.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/917_32.mdl|materials/models/weapons/v_models/mac11/map3_wire.vmt": {
+      "height": 8,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire2.vtf",
+      "width": 8
+    },
+    "models/perpheads/weapons/magazines/918_18.mdl|materials/models/weapons/v_models/mac11/map3_wire.vmt": {
+      "height": 8,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire2.vtf",
+      "width": 8
+    },
+    "models/perpheads/weapons/magazines/918_18.mdl|materials/models/weapons/v_models/ots-33/ots33_slide.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/ots-33/ots33_slide.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/918_8.mdl|materials/models/weapons/v_models/mac11/map3_wire.vmt": {
+      "height": 8,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire2.vtf",
+      "width": 8
+    },
+    "models/perpheads/weapons/magazines/918_8.mdl|materials/models/weapons/v_models/makarov/main.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/makarov/main.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/919_15.mdl|materials/models/weapons/v_models/m9/frame.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/m9/frame.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/919_15.mdl|materials/models/weapons/v_models/mac11/map3_wire.vmt": {
+      "height": 8,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire2.vtf",
+      "width": 8
+    },
+    "models/perpheads/weapons/magazines/919_17.mdl|materials/models/weapons/v_models/glock17/mag_uv.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/glock17/mag_uv.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/919_17.mdl|materials/models/weapons/v_models/mac11/map3_wire.vmt": {
+      "height": 8,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire2.vtf",
+      "width": 8
+    },
+    "models/perpheads/weapons/magazines/919_19.mdl|materials/models/weapons/v_models/glock18/mag.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/glock18/mag.vtf",
+      "width": 256
+    },
+    "models/perpheads/weapons/magazines/919_19.mdl|materials/models/weapons/v_models/mac11/map3_wire.vmt": {
+      "height": 8,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire2.vtf",
+      "width": 8
+    },
+    "models/perpheads/weapons/magazines/919_20.mdl|materials/models/weapons/v_models/mac11/map3_wire.vmt": {
+      "height": 8,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire2.vtf",
+      "width": 8
+    },
+    "models/perpheads/weapons/magazines/919_20.mdl|materials/models/weapons/v_models/mp5k/short_map.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/mp5k/short_map.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/magazines/919_20_2.mdl|materials/models/weapons/v_models/mac11/map3_wire.vmt": {
+      "height": 8,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire2.vtf",
+      "width": 8
+    },
+    "models/perpheads/weapons/magazines/919_20_2.mdl|materials/models/weapons/v_models/mp9/t2.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/mp9/t2.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/magazines/919_30.mdl|materials/models/weapons/v_models/mac11/map3_wire.vmt": {
+      "height": 8,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire2.vtf",
+      "width": 8
+    },
+    "models/perpheads/weapons/magazines/919_30.mdl|materials/models/weapons/v_models/mp5/une.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/mp5/une.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/919_30_2.mdl|materials/models/weapons/v_models/mac11/map3_wire.vmt": {
+      "height": 8,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire2.vtf",
+      "width": 8
+    },
+    "models/perpheads/weapons/magazines/919_30_2.mdl|materials/models/weapons/v_models/mp9/t2.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/mp9/t2.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/magazines/919_32.mdl|materials/models/weapons/v_models/mac11/map3_wire.vmt": {
+      "height": 8,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire2.vtf",
+      "width": 8
+    },
+    "models/perpheads/weapons/magazines/919_32.mdl|materials/models/weapons/v_models/uzi/stocketc_map.vmt": {
+      "height": 512,
+      "vtf": "materials/models/weapons/v_models/uzi/stocketc_map.vtf",
+      "width": 512
+    },
+    "models/perpheads/weapons/magazines/919_8.mdl|materials/models/weapons/v_models/luger/frame.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/weapons/v_models/luger/v_luger_bottom.vtf",
+      "width": 1024
+    },
+    "models/perpheads/weapons/magazines/919_8.mdl|materials/models/weapons/v_models/mac11/map3_wire.vmt": {
+      "height": 8,
+      "vtf": "materials/models/weapons/v_models/mac11/map3_wire2.vtf",
+      "width": 8
+    },
+    "models/perpheads/weapons/magazines/m26c.mdl|materials/models/jarheads/weapons/m26c/m26c.vmt": {
+      "height": 1024,
+      "vtf": "materials/models/jarheads/weapons/m26c/m26c.vtf",
+      "width": 1024
+    }
+  },
+  "models": {
+    "models/perpheads/weapons/attachments/pistol_flashlight.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_flashlight.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/pistol_lam.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_lam.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/pistol_rail.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_rail.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/pistol_reflex.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_acog.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_acog.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_aimpoint.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_anpeq.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_anpeq.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_carryhandle.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_carryhandle.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_compensator.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_elcan.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_eotech.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_eotech2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_flashlight.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_flashlight.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_flip_front.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_flip_front.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_flip_front2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_flip_front2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_flip_rear.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_flip_rear.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_flip_rear2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_flip_rear2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_iron_crown.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_iron_crown.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_microdot.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_rail_1.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_rail_1.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_rail_2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_rail_2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_reddot.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_reflex.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/scope_atacr.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/scope_atacr.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/scope_l96.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/scope_l96.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/scope_pm2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/scope_pm2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/scope_rail_1.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/scope_rail_1.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/scope_rail_2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/scope_schmidt.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_ak101.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_ak101.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_ak47.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_ak47.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_ak74.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_ak74.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_g36.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_g36.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_g3a3.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_g3a3.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_m16.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_m16.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_m4a1.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_m4a1.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_mac11.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_mac11.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_mp5.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_mp5.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_mp5_2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_mp5_2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_mp5k.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_mp5k.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_mp7.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_mp7.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_mp9.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_mp9.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_sako92.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_sako92.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_scarl.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_scarl.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_sg550.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_sg550.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_spas12.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_spas12.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_sr25.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_sr25.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_ump45.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_ump45.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/stock_uzi.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/stock_uzi.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/suppressor_1022.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/suppressor_1022.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/suppressor_1025.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/suppressor_1025.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/suppressor_114323.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/suppressor_114323.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/suppressor_12733.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/suppressor_12733.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/suppressor_54539.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/suppressor_54539.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/suppressor_55645.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/suppressor_55645.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/suppressor_76239.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/suppressor_76239.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/suppressor_76251.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/suppressor_76251.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/suppressor_76517.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/suppressor_76517.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/suppressor_917.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/suppressor_917.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/suppressor_918.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/suppressor_918.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/attachments/suppressor_919.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/suppressor_919.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_590.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/c_590.mdl"
+      ],
+      "slots": {
+        "SLOT_SIGHT": [
+          "aimpoint",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_605.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_605.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_870.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/c_870.mdl"
+      ],
+      "slots": {
+        "SLOT_SIGHT": [
+          "aimpoint",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_870_short.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/c_870_short.mdl"
+      ],
+      "slots": {
+        "SLOT_SIGHT": [
+          "aimpoint",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_ak101.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_rail_1.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/stock_ak101.mdl",
+        "models/perpheads/weapons/attachments/stock_ak47.mdl",
+        "models/perpheads/weapons/attachments/stock_ak74.mdl",
+        "models/perpheads/weapons/attachments/stock_sako92.mdl",
+        "models/perpheads/weapons/attachments/suppressor_55645.mdl",
+        "models/perpheads/weapons/c_ak101.mdl",
+        "models/perpheads/weapons/magazines/55645_30_4.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_556_45_30_4",
+          "mag_556_45_30_4"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "suppressor_55645"
+        ],
+        "SLOT_STOCK": [
+          "stock_ak101",
+          "stock_ak47",
+          "stock_ak74",
+          "stock_sako92"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_ak47.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_rail_1.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/stock_ak101.mdl",
+        "models/perpheads/weapons/attachments/stock_ak47.mdl",
+        "models/perpheads/weapons/attachments/stock_ak74.mdl",
+        "models/perpheads/weapons/attachments/stock_m16.mdl",
+        "models/perpheads/weapons/attachments/stock_m4a1.mdl",
+        "models/perpheads/weapons/attachments/stock_sako92.mdl",
+        "models/perpheads/weapons/attachments/suppressor_76239.mdl",
+        "models/perpheads/weapons/c_ak47.mdl",
+        "models/perpheads/weapons/magazines/76239_30.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_762_39_30",
+          "mag_762_39_30"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_76239"
+        ],
+        "SLOT_STOCK": [
+          "stock_ak101",
+          "stock_ak47",
+          "stock_ak74",
+          "stock_m16",
+          "stock_m4a1",
+          "stock_sako92"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_ak74u.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_rail_1.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/stock_ak101.mdl",
+        "models/perpheads/weapons/attachments/stock_ak47.mdl",
+        "models/perpheads/weapons/attachments/stock_ak74.mdl",
+        "models/perpheads/weapons/attachments/stock_sako92.mdl",
+        "models/perpheads/weapons/attachments/suppressor_54539.mdl",
+        "models/perpheads/weapons/c_ak74u.mdl",
+        "models/perpheads/weapons/magazines/54539_30.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_545_39_30",
+          "mag_545_39_30"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_54539"
+        ],
+        "SLOT_STOCK": [
+          "stock_ak101",
+          "stock_ak47",
+          "stock_ak74",
+          "stock_sako92"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_anaconda.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_anaconda.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_as50.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_front.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_rear.mdl",
+        "models/perpheads/weapons/attachments/scope_atacr.mdl",
+        "models/perpheads/weapons/attachments/scope_l96.mdl",
+        "models/perpheads/weapons/attachments/scope_pm2.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/c_as50.mdl",
+        "models/perpheads/weapons/magazines/12799_10_2.mdl"
+      ],
+      "slots": {
+        "SLOT_IRON_REAR": [
+          "flip_rear"
+        ],
+        "SLOT_MAGAZINE": [
+          "mag_127_99_10_2",
+          "mag_127_99_10_2"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "atacr",
+          "elcan",
+          "l96",
+          "pm2",
+          "schmidt"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_auga3.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_flashlight.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_front.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_rear.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/suppressor_55645.mdl",
+        "models/perpheads/weapons/c_auga3.mdl",
+        "models/perpheads/weapons/magazines/55645_25.mdl",
+        "models/perpheads/weapons/magazines/55645_30.mdl"
+      ],
+      "slots": {
+        "SLOT_IRON_REAR": [
+          "flip_rear"
+        ],
+        "SLOT_MAGAZINE": [
+          "mag_556_45_25",
+          "mag_556_45_30"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_55645"
+        ],
+        "SLOT_UNDERBARREL": [
+          "rifle_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_c2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_c2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_deagle.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_flashlight.mdl",
+        "models/perpheads/weapons/attachments/pistol_rail.mdl",
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/suppressor_12733.mdl",
+        "models/perpheads/weapons/c_deagle.mdl",
+        "models/perpheads/weapons/magazines/12733_7.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_127_33_7",
+          "mag_127_33_7"
+        ],
+        "SLOT_SIGHT": [
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "suppressor_12733"
+        ],
+        "SLOT_UNDERBARREL": [
+          "pistol_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_doublebarrel.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_doublebarrel.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_ext.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_ext.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_famas.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/suppressor_55645.mdl",
+        "models/perpheads/weapons/c_famas.mdl",
+        "models/perpheads/weapons/magazines/55645_25.mdl",
+        "models/perpheads/weapons/magazines/55645_30.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_556_45_25",
+          "mag_556_45_30"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_55645"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_g36.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_flashlight.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/stock_g36.mdl",
+        "models/perpheads/weapons/attachments/suppressor_55645.mdl",
+        "models/perpheads/weapons/c_g36.mdl",
+        "models/perpheads/weapons/magazines/55645_30_2.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_556_45_30_2",
+          "mag_556_45_30_2"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_55645"
+        ],
+        "SLOT_STOCK": [
+          "stock_g36"
+        ],
+        "SLOT_UNDERBARREL": [
+          "rifle_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_g3a3.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/scope_atacr.mdl",
+        "models/perpheads/weapons/attachments/scope_l96.mdl",
+        "models/perpheads/weapons/attachments/scope_pm2.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/stock_g3a3.mdl",
+        "models/perpheads/weapons/attachments/suppressor_76251.mdl",
+        "models/perpheads/weapons/c_g3a3.mdl",
+        "models/perpheads/weapons/magazines/76251_20_2.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_762_51_20_2",
+          "mag_762_51_20_2"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "atacr",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "l96",
+          "microdot",
+          "pistol_reflex",
+          "pm2",
+          "reddot",
+          "rifle_reflex",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_76251"
+        ],
+        "SLOT_STOCK": [
+          "stock_g3a3"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_glock17.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_flashlight.mdl",
+        "models/perpheads/weapons/attachments/pistol_rail.mdl",
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/suppressor_919.mdl",
+        "models/perpheads/weapons/c_glock17.mdl",
+        "models/perpheads/weapons/magazines/919_17.mdl",
+        "models/perpheads/weapons/magazines/919_19.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_9_19_17",
+          "mag_9_19_19",
+          "mag_9_19_17"
+        ],
+        "SLOT_SIGHT": [
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "suppressor_919"
+        ],
+        "SLOT_UNDERBARREL": [
+          "pistol_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_glock18.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_flashlight.mdl",
+        "models/perpheads/weapons/attachments/pistol_rail.mdl",
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/suppressor_919.mdl",
+        "models/perpheads/weapons/c_glock18.mdl",
+        "models/perpheads/weapons/magazines/919_17.mdl",
+        "models/perpheads/weapons/magazines/919_19.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_9_19_17",
+          "mag_9_19_19",
+          "mag_9_19_19"
+        ],
+        "SLOT_SIGHT": [
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "suppressor_919"
+        ],
+        "SLOT_UNDERBARREL": [
+          "pistol_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_glock20.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_flashlight.mdl",
+        "models/perpheads/weapons/attachments/pistol_rail.mdl",
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/suppressor_1025.mdl",
+        "models/perpheads/weapons/c_glock20.mdl",
+        "models/perpheads/weapons/magazines/1025_15.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_10_25_15",
+          "mag_10_25_15"
+        ],
+        "SLOT_SIGHT": [
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "suppressor_1025"
+        ],
+        "SLOT_UNDERBARREL": [
+          "pistol_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_katana.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_katana.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_l115a3.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_front.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_rear.mdl",
+        "models/perpheads/weapons/attachments/scope_atacr.mdl",
+        "models/perpheads/weapons/attachments/scope_l96.mdl",
+        "models/perpheads/weapons/attachments/scope_pm2.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/c_l115a3.mdl",
+        "models/perpheads/weapons/magazines/85870_5.mdl"
+      ],
+      "slots": {
+        "SLOT_IRON_REAR": [
+          "flip_rear"
+        ],
+        "SLOT_MAGAZINE": [
+          "mag_858_70_5",
+          "mag_858_70_5"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "atacr",
+          "elcan",
+          "l96",
+          "pm2",
+          "schmidt"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_l85.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_flashlight.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_front.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_rear.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/suppressor_55645.mdl",
+        "models/perpheads/weapons/c_l85.mdl",
+        "models/perpheads/weapons/magazines/55645_25.mdl",
+        "models/perpheads/weapons/magazines/55645_30.mdl"
+      ],
+      "slots": {
+        "SLOT_IRON_REAR": [
+          "flip_rear"
+        ],
+        "SLOT_MAGAZINE": [
+          "mag_556_45_25",
+          "mag_556_45_30"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_55645"
+        ],
+        "SLOT_UNDERBARREL": [
+          "rifle_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_luger.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_luger.mdl",
+        "models/perpheads/weapons/magazines/919_8.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_9_19_8",
+          "mag_9_19_8"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_m14.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/scope_atacr.mdl",
+        "models/perpheads/weapons/attachments/scope_l96.mdl",
+        "models/perpheads/weapons/attachments/scope_pm2.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/suppressor_76251.mdl",
+        "models/perpheads/weapons/c_m14.mdl",
+        "models/perpheads/weapons/magazines/76251_20.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_762_51_20",
+          "mag_762_51_20"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "atacr",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "l96",
+          "microdot",
+          "pistol_reflex",
+          "pm2",
+          "reddot",
+          "rifle_reflex",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_76251"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_m16.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_anpeq.mdl",
+        "models/perpheads/weapons/attachments/rifle_carryhandle.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_flashlight.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_front.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_rear.mdl",
+        "models/perpheads/weapons/attachments/rifle_iron_crown.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/scope_pm2.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/stock_m16.mdl",
+        "models/perpheads/weapons/attachments/stock_m4a1.mdl",
+        "models/perpheads/weapons/attachments/suppressor_55645.mdl",
+        "models/perpheads/weapons/c_m16.mdl",
+        "models/perpheads/weapons/magazines/55645_25.mdl",
+        "models/perpheads/weapons/magazines/55645_30.mdl"
+      ],
+      "slots": {
+        "SLOT_IRON_REAR": [
+          "flip_rear"
+        ],
+        "SLOT_LEFT_RAIL": [
+          "anpeq"
+        ],
+        "SLOT_MAGAZINE": [
+          "mag_556_45_25",
+          "mag_556_45_30"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "carryhandle",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "pm2",
+          "reddot",
+          "rifle_reflex",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_55645"
+        ],
+        "SLOT_STOCK": [
+          "stock_m16",
+          "stock_m4a1"
+        ],
+        "SLOT_UNDERBARREL": [
+          "rifle_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_m19.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_m19.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_m1911.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_flashlight.mdl",
+        "models/perpheads/weapons/attachments/pistol_rail.mdl",
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/suppressor_114323.mdl",
+        "models/perpheads/weapons/c_m1911.mdl",
+        "models/perpheads/weapons/magazines/114323_7.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_1143_23_7",
+          "mag_1143_23_7"
+        ],
+        "SLOT_SIGHT": [
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "suppressor_114323"
+        ],
+        "SLOT_UNDERBARREL": [
+          "pistol_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_m24.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_atacr.mdl",
+        "models/perpheads/weapons/attachments/scope_l96.mdl",
+        "models/perpheads/weapons/attachments/scope_pm2.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/suppressor_76251.mdl",
+        "models/perpheads/weapons/c_m24.mdl"
+      ],
+      "slots": {
+        "SLOT_SIGHT": [
+          "acog",
+          "atacr",
+          "elcan",
+          "l96",
+          "pm2",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "suppressor_76251"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_m26c.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_m26c.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_m29.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_m29.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_m3.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/c_m3.mdl"
+      ],
+      "slots": {
+        "SLOT_SIGHT": [
+          "aimpoint",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_m4a1.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_anpeq.mdl",
+        "models/perpheads/weapons/attachments/rifle_carryhandle.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_flashlight.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_front.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_rear.mdl",
+        "models/perpheads/weapons/attachments/rifle_iron_crown.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/stock_m16.mdl",
+        "models/perpheads/weapons/attachments/stock_m4a1.mdl",
+        "models/perpheads/weapons/attachments/suppressor_55645.mdl",
+        "models/perpheads/weapons/c_m4a1.mdl",
+        "models/perpheads/weapons/magazines/55645_25.mdl",
+        "models/perpheads/weapons/magazines/55645_30.mdl"
+      ],
+      "slots": {
+        "SLOT_IRON_REAR": [
+          "flip_rear"
+        ],
+        "SLOT_LEFT_RAIL": [
+          "anpeq"
+        ],
+        "SLOT_MAGAZINE": [
+          "mag_556_45_25",
+          "mag_556_45_30"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "carryhandle",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_55645"
+        ],
+        "SLOT_STOCK": [
+          "stock_m16",
+          "stock_m4a1"
+        ],
+        "SLOT_UNDERBARREL": [
+          "rifle_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_m67.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_m67.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_m68.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_m68.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_m69.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_m69.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_m82.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_front2.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_rear2.mdl",
+        "models/perpheads/weapons/attachments/scope_atacr.mdl",
+        "models/perpheads/weapons/attachments/scope_l96.mdl",
+        "models/perpheads/weapons/attachments/scope_pm2.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/c_m82.mdl",
+        "models/perpheads/weapons/magazines/12799_10.mdl"
+      ],
+      "slots": {
+        "SLOT_IRON_REAR": [
+          "flip_rear2"
+        ],
+        "SLOT_MAGAZINE": [
+          "mag_127_99_10",
+          "mag_127_99_10"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "atacr",
+          "elcan",
+          "l96",
+          "pm2",
+          "schmidt"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_m84.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_m84.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_m9.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_flashlight.mdl",
+        "models/perpheads/weapons/attachments/pistol_rail.mdl",
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/suppressor_919.mdl",
+        "models/perpheads/weapons/c_m9.mdl",
+        "models/perpheads/weapons/magazines/919_15.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_9_19_15",
+          "mag_9_19_15"
+        ],
+        "SLOT_SIGHT": [
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "suppressor_919"
+        ],
+        "SLOT_UNDERBARREL": [
+          "pistol_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_mac11.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/stock_mac11.mdl",
+        "models/perpheads/weapons/attachments/suppressor_917.mdl",
+        "models/perpheads/weapons/c_mac11.mdl",
+        "models/perpheads/weapons/magazines/917_32.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_9_17_32",
+          "mag_9_17_32"
+        ],
+        "SLOT_SIGHT": [
+          "aimpoint",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_917"
+        ],
+        "SLOT_STOCK": [
+          "stock_mac11"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_machete.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_machete.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_makarov.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/suppressor_918.mdl",
+        "models/perpheads/weapons/c_makarov.mdl",
+        "models/perpheads/weapons/magazines/918_8.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_9_18_8"
+        ],
+        "SLOT_SILENCER": [
+          "suppressor_918"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_mp5.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_flashlight.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/stock_mp5.mdl",
+        "models/perpheads/weapons/attachments/stock_mp5_2.mdl",
+        "models/perpheads/weapons/attachments/suppressor_919.mdl",
+        "models/perpheads/weapons/c_mp5.mdl",
+        "models/perpheads/weapons/magazines/919_30.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_9_19_30",
+          "mag_9_19_30"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_919"
+        ],
+        "SLOT_STOCK": [
+          "stock_mp5",
+          "stock_mp5_2"
+        ],
+        "SLOT_UNDERBARREL": [
+          "rifle_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_mp510.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/stock_mp5.mdl",
+        "models/perpheads/weapons/attachments/stock_mp5_2.mdl",
+        "models/perpheads/weapons/attachments/suppressor_1025.mdl",
+        "models/perpheads/weapons/c_mp510.mdl",
+        "models/perpheads/weapons/magazines/1025_30.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_10_25_30",
+          "mag_10_25_30"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "suppressor_1025"
+        ],
+        "SLOT_STOCK": [
+          "stock_mp5",
+          "stock_mp5_2"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_mp5k.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/stock_mp5k.mdl",
+        "models/perpheads/weapons/attachments/suppressor_919.mdl",
+        "models/perpheads/weapons/c_mp5k.mdl",
+        "models/perpheads/weapons/magazines/919_20.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_9_19_20",
+          "mag_9_19_20"
+        ],
+        "SLOT_SIGHT": [
+          "aimpoint",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "suppressor_919"
+        ],
+        "SLOT_STOCK": [
+          "stock_mp5k"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_mp7.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/stock_mp7.mdl",
+        "models/perpheads/weapons/c_mp7.mdl",
+        "models/perpheads/weapons/magazines/4630_20.mdl",
+        "models/perpheads/weapons/magazines/4630_40.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_46_30_20",
+          "mag_46_30_40"
+        ],
+        "SLOT_SIGHT": [
+          "aimpoint",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator"
+        ],
+        "SLOT_STOCK": [
+          "stock_mp7"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_mp9.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/stock_mp9.mdl",
+        "models/perpheads/weapons/attachments/suppressor_919.mdl",
+        "models/perpheads/weapons/c_mp9.mdl",
+        "models/perpheads/weapons/magazines/919_20_2.mdl",
+        "models/perpheads/weapons/magazines/919_30_2.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_9_19_20_2",
+          "mag_9_19_30_2"
+        ],
+        "SLOT_SIGHT": [
+          "aimpoint",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "suppressor_919"
+        ],
+        "SLOT_STOCK": [
+          "stock_mp9"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_ots33.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_flashlight.mdl",
+        "models/perpheads/weapons/attachments/pistol_rail.mdl",
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/suppressor_918.mdl",
+        "models/perpheads/weapons/c_ots33.mdl",
+        "models/perpheads/weapons/magazines/918_18.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_9_18_18",
+          "mag_9_18_18"
+        ],
+        "SLOT_SIGHT": [
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "suppressor_918"
+        ],
+        "SLOT_UNDERBARREL": [
+          "pistol_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_p226.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_flashlight.mdl",
+        "models/perpheads/weapons/attachments/pistol_rail.mdl",
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/suppressor_1022.mdl",
+        "models/perpheads/weapons/c_p226.mdl",
+        "models/perpheads/weapons/magazines/1022_13_2.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_10_22_13_2",
+          "mag_10_22_13_2"
+        ],
+        "SLOT_SIGHT": [
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "suppressor_1022"
+        ],
+        "SLOT_UNDERBARREL": [
+          "pistol_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_p99.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_flashlight.mdl",
+        "models/perpheads/weapons/attachments/pistol_rail.mdl",
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/suppressor_1022.mdl",
+        "models/perpheads/weapons/c_p99.mdl",
+        "models/perpheads/weapons/magazines/1022_12.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_10_22_12",
+          "mag_10_22_12"
+        ],
+        "SLOT_SIGHT": [
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "suppressor_1022"
+        ],
+        "SLOT_UNDERBARREL": [
+          "pistol_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_pineapple.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_pineapple.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_pineapple2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_pineapple2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_ppk.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/suppressor_76517.mdl",
+        "models/perpheads/weapons/c_ppk.mdl",
+        "models/perpheads/weapons/magazines/76517_7.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_765_17_7",
+          "mag_765_17_7"
+        ],
+        "SLOT_SILENCER": [
+          "suppressor_76517"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_python.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_python.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_rbull.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_rbull.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_sako92.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_rail_1.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/stock_ak74.mdl",
+        "models/perpheads/weapons/attachments/stock_sako92.mdl",
+        "models/perpheads/weapons/attachments/suppressor_76239.mdl",
+        "models/perpheads/weapons/c_sako92.mdl",
+        "models/perpheads/weapons/magazines/76239_30_2.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_762_39_30_2",
+          "mag_762_39_30_2"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_76239"
+        ],
+        "SLOT_STOCK": [
+          "stock_ak74",
+          "stock_sako92"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_sawedoff.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_sawedoff.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_scarl.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_anpeq.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_flashlight.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_front.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_rear.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/stock_scarl.mdl",
+        "models/perpheads/weapons/attachments/suppressor_55645.mdl",
+        "models/perpheads/weapons/c_scarl.mdl",
+        "models/perpheads/weapons/magazines/55645_25.mdl",
+        "models/perpheads/weapons/magazines/55645_30.mdl"
+      ],
+      "slots": {
+        "SLOT_IRON_REAR": [
+          "flip_rear"
+        ],
+        "SLOT_LEFT_RAIL": [
+          "anpeq"
+        ],
+        "SLOT_MAGAZINE": [
+          "mag_556_45_25",
+          "mag_556_45_30"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_55645"
+        ],
+        "SLOT_STOCK": [
+          "stock_scarl"
+        ],
+        "SLOT_UNDERBARREL": [
+          "rifle_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_sg550.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/scope_pm2.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/stock_sg550.mdl",
+        "models/perpheads/weapons/attachments/suppressor_55645.mdl",
+        "models/perpheads/weapons/c_sg550.mdl",
+        "models/perpheads/weapons/magazines/55645_30_3.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_556_45_30_3",
+          "mag_556_45_30_3"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "pm2",
+          "reddot",
+          "rifle_reflex",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_55645"
+        ],
+        "SLOT_STOCK": [
+          "stock_sg550"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_spas12.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/stock_spas12.mdl",
+        "models/perpheads/weapons/c_spas12.mdl"
+      ],
+      "slots": {
+        "SLOT_SIGHT": [
+          "aimpoint",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_STOCK": [
+          "stock_spas12"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_sr25.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_carryhandle.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_elcan.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_flashlight.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_front.mdl",
+        "models/perpheads/weapons/attachments/rifle_flip_rear.mdl",
+        "models/perpheads/weapons/attachments/rifle_iron_crown.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/scope_atacr.mdl",
+        "models/perpheads/weapons/attachments/scope_l96.mdl",
+        "models/perpheads/weapons/attachments/scope_pm2.mdl",
+        "models/perpheads/weapons/attachments/scope_rail_2.mdl",
+        "models/perpheads/weapons/attachments/scope_schmidt.mdl",
+        "models/perpheads/weapons/attachments/stock_m16.mdl",
+        "models/perpheads/weapons/attachments/stock_m4a1.mdl",
+        "models/perpheads/weapons/attachments/stock_sr25.mdl",
+        "models/perpheads/weapons/attachments/suppressor_76251.mdl",
+        "models/perpheads/weapons/c_sr25.mdl",
+        "models/perpheads/weapons/magazines/76251_10.mdl"
+      ],
+      "slots": {
+        "SLOT_IRON_REAR": [
+          "flip_rear"
+        ],
+        "SLOT_MAGAZINE": [
+          "mag_762_51_10",
+          "mag_762_51_10"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "atacr",
+          "carryhandle",
+          "elcan",
+          "eotech",
+          "eotech2",
+          "l96",
+          "microdot",
+          "pm2",
+          "reddot",
+          "rifle_reflex",
+          "schmidt"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_76251"
+        ],
+        "SLOT_STOCK": [
+          "stock_m16",
+          "stock_m4a1",
+          "stock_sr25"
+        ],
+        "SLOT_UNDERBARREL": [
+          "rifle_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_sw500.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_sw500.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_ties.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_ties.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_ump45.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_acog.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_flashlight.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/stock_ump45.mdl",
+        "models/perpheads/weapons/attachments/suppressor_114323.mdl",
+        "models/perpheads/weapons/c_ump45.mdl",
+        "models/perpheads/weapons/magazines/114323_25.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_1143_23_25",
+          "mag_1143_23_25"
+        ],
+        "SLOT_SIGHT": [
+          "acog",
+          "aimpoint",
+          "eotech",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "suppressor_114323"
+        ],
+        "SLOT_STOCK": [
+          "stock_ump45"
+        ],
+        "SLOT_UNDERBARREL": [
+          "rifle_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_usp.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_flashlight.mdl",
+        "models/perpheads/weapons/attachments/pistol_rail.mdl",
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/suppressor_1022.mdl",
+        "models/perpheads/weapons/c_usp.mdl",
+        "models/perpheads/weapons/magazines/1022_13.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_10_22_13",
+          "mag_10_22_13"
+        ],
+        "SLOT_SIGHT": [
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "suppressor_1022"
+        ],
+        "SLOT_UNDERBARREL": [
+          "pistol_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_usp45ct.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_flashlight.mdl",
+        "models/perpheads/weapons/attachments/pistol_rail.mdl",
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/suppressor_114323.mdl",
+        "models/perpheads/weapons/c_usp45ct.mdl",
+        "models/perpheads/weapons/magazines/114323_10.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_1143_23_10",
+          "mag_1143_23_10"
+        ],
+        "SLOT_SIGHT": [
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "suppressor_114323"
+        ],
+        "SLOT_UNDERBARREL": [
+          "pistol_flashlight"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_uzi.mdl": {
+      "parts": [
+        "models/perpheads/weapons/attachments/pistol_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_aimpoint.mdl",
+        "models/perpheads/weapons/attachments/rifle_compensator.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech.mdl",
+        "models/perpheads/weapons/attachments/rifle_eotech2.mdl",
+        "models/perpheads/weapons/attachments/rifle_microdot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reddot.mdl",
+        "models/perpheads/weapons/attachments/rifle_reflex.mdl",
+        "models/perpheads/weapons/attachments/rifle_suppressor_flash.mdl",
+        "models/perpheads/weapons/attachments/stock_uzi.mdl",
+        "models/perpheads/weapons/attachments/suppressor_919.mdl",
+        "models/perpheads/weapons/c_uzi.mdl",
+        "models/perpheads/weapons/magazines/919_32.mdl"
+      ],
+      "slots": {
+        "SLOT_MAGAZINE": [
+          "mag_9_19_32",
+          "mag_9_19_32"
+        ],
+        "SLOT_SIGHT": [
+          "aimpoint",
+          "eotech",
+          "eotech2",
+          "microdot",
+          "pistol_reflex",
+          "reddot",
+          "rifle_reflex"
+        ],
+        "SLOT_SILENCER": [
+          "rifle_compensator",
+          "rifle_suppressor_flash",
+          "suppressor_919"
+        ],
+        "SLOT_STOCK": [
+          "stock_uzi"
+        ]
+      }
+    },
+    "models/perpheads/weapons/c_weapons/c_baseballbat.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_baseballbat.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_baton.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_baton.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_binoculars.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_binoculars.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_candycane.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_candycane.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_confetti.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_confetti.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_defibrillator.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_defibrillator.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_elf.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_elf.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_elf2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_elf2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_elf3.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_elf3.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_elf4.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_elf4.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_firehose.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_firehose.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_first_aid.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_first_aid.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_gingerbread24.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_gingerbread24.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_hammer.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_hammer.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_handcuffs.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_handcuffs.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_hatchet.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_hatchet.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_key.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_key.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_knife.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_knife.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_meat_cleaver.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_meat_cleaver.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_nutcracker.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_nutcracker.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_penguin.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_penguin.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_pick.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_pick.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_santa25doll.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_santa25doll.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_shovel.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_shovel.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_snowball.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_snowball.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/c_weapons/c_ticket_book.mdl": {
+      "parts": [
+        "models/perpheads/weapons/c_weapons/c_ticket_book.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/1022_12.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/1022_12.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/1022_13.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/1022_13.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/1022_13_2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/1022_13_2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/1025_15.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/1025_15.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/1025_30.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/1025_30.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/114323_10.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/114323_10.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/114323_25.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/114323_25.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/114323_7.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/114323_7.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/12733_7.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/12733_7.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/12799_10.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/12799_10.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/12799_10_2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/12799_10_2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/4630_20.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/4630_20.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/4630_40.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/4630_40.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/54539_30.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/54539_30.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/55645_25.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/55645_25.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/55645_30.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/55645_30.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/55645_30_2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/55645_30_2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/55645_30_3.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/55645_30_3.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/55645_30_4.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/55645_30_4.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/76239_30.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/76239_30.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/76239_30_2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/76239_30_2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/76251_10.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/76251_10.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/76251_20.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/76251_20.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/76251_20_2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/76251_20_2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/76517_7.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/76517_7.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/85870_5.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/85870_5.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/917_32.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/917_32.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/918_18.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/918_18.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/918_8.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/918_8.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/919_15.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/919_15.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/919_17.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/919_17.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/919_19.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/919_19.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/919_20.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/919_20.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/919_20_2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/919_20_2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/919_30.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/919_30.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/919_30_2.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/919_30_2.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/919_32.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/919_32.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/919_8.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/919_8.mdl"
+      ],
+      "slots": {}
+    },
+    "models/perpheads/weapons/magazines/m26c.mdl": {
+      "parts": [
+        "models/perpheads/weapons/magazines/m26c.mdl"
+      ],
+      "slots": {}
+    }
+  }
+}

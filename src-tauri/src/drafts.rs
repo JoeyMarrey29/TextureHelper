@@ -44,6 +44,18 @@ pub struct AiOriginal {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkshopSource {
+    pub id: String,
+    pub steam_id: String,
+    pub license: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_steam_id: Option<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Draft {
     pub version: u32,
     pub id: Option<String>,
@@ -55,6 +67,8 @@ pub struct Draft {
     pub textures: Vec<DraftTexture>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ai_originals: Vec<AiOriginal>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workshop_source: Option<WorkshopSource>,
     #[serde(default)]
     archived_files: Vec<SavedFile>,
 }
@@ -72,7 +86,7 @@ pub struct DraftSummary {
     installed_ids: Vec<String>,
 }
 
-fn storage(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub(super) fn storage(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(app.path().app_data_dir().map_err(|error| error.to_string())?.join("drafts"))
 }
 
@@ -111,6 +125,19 @@ fn validate(draft: &Draft) -> Result<(), String> {
     }
     if draft.name.trim().is_empty() {
         return Err("Draft name cannot be empty".into());
+    }
+    if let Some(source) = &draft.workshop_source {
+        if source.id.len() != 32 || !source.id.bytes().all(|c| c.is_ascii_hexdigit())
+            || source.steam_id.len() != 17 || !source.steam_id.bytes().all(|c| c.is_ascii_digit())
+            || source.license != "CC-BY-4.0" {
+            return Err("Invalid workshop attribution".into());
+        }
+        match (&source.parent, &source.parent_steam_id) {
+            (None, None) => {}
+            (Some(id), Some(steam_id)) if id.len() == 32 && id.bytes().all(|c| c.is_ascii_hexdigit())
+                && steam_id.len() == 17 && steam_id.bytes().all(|c| c.is_ascii_digit()) => {}
+            _ => return Err("Invalid workshop remix attribution".into()),
+        }
     }
     if draft.ai_originals.len() > 24 { return Err("Too many AI originals in this draft".into()); }
     let mut ids = std::collections::HashSet::new();
@@ -152,7 +179,7 @@ fn validate(draft: &Draft) -> Result<(), String> {
     Ok(())
 }
 
-fn read_at(root: &Path, id: &str) -> Result<Draft, String> {
+pub(super) fn read_at(root: &Path, id: &str) -> Result<Draft, String> {
     let bytes = fs::read(draft_path(root, id)?).map_err(|error| error.to_string())?;
     let draft: Draft = serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
     if draft.id.as_deref() != Some(id) {
@@ -389,7 +416,7 @@ fn package_bytes(mut draft: Draft) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-fn import_package_at(root: &Path, bytes: &[u8]) -> Result<Draft, String> {
+pub(super) fn import_package_at(root: &Path, bytes: &[u8]) -> Result<Draft, String> {
     if bytes.len() as u64 > MAX_SHARE_BYTES { return Err("Skin package exceeds 256 MiB".into()); }
     let mut package: SkinPackage = serde_json::from_slice(bytes).map_err(|error| format!("Invalid skin package: {error}"))?;
     if package.format != SHARE_FORMAT || package.version != 1 {
@@ -473,7 +500,7 @@ fn installed_draft(install: &Path, id: &str) -> Result<Draft, String> {
     }
     Ok(Draft { version: 1, id: None, name: skin.name, model_path: String::new(),
         slot_selections: BTreeMap::new(), active_part_path: String::new(), active_material_key: None,
-        textures: Vec::new(), ai_originals: Vec::new(), archived_files: files })
+        textures: Vec::new(), ai_originals: Vec::new(), workshop_source: None, archived_files: files })
 }
 
 #[tauri::command]
@@ -576,7 +603,7 @@ mod tests {
                 vtf_path: Some(format!("{SKIN_MATERIAL_PREFIX}ak101/frame.vtf")),
                 vmt_text: Some("VertexLitGeneric\n{\n$basetexture \"original\"\n}".into()),
                 png: format!("data:image/png;base64,{}", STANDARD.encode(png.into_inner())), strip_alpha: false }],
-            ai_originals: Vec::new(), archived_files: Vec::new() }
+            ai_originals: Vec::new(), workshop_source: None, archived_files: Vec::new() }
     }
 
     #[test]
@@ -599,6 +626,8 @@ mod tests {
         let destination = tempfile::tempdir().unwrap();
         let mut draft = sample();
         draft.textures[0].strip_alpha = true;
+        draft.workshop_source = Some(WorkshopSource {id:"a".repeat(32), steam_id:"76561198000000000".into(), license:"CC-BY-4.0".into(),
+            parent:Some("b".repeat(32)), parent_steam_id:Some("76561198000000001".into())});
         draft.ai_originals.push(AiOriginal {id:"original".into(), label:"Original".into(), png:draft.textures[0].png.clone()});
         let mut second = draft.textures[0].clone();
         second.key = "stock".into();
@@ -619,6 +648,21 @@ mod tests {
         assert_eq!(original, imported);
         assert_eq!(fs::read_dir(destination.path()).unwrap().count(), 2);
         assert_eq!(fs::read_dir(source.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn workshop_attribution_rejects_invalid_identity_or_licence() {
+        let valid = WorkshopSource {id:"a".repeat(32), steam_id:"76561198000000000".into(), license:"CC-BY-4.0".into(),
+            parent:None, parent_steam_id:None};
+        for invalid in [
+            WorkshopSource {id:"../skin".into(), ..valid.clone()},
+            WorkshopSource {steam_id:"not-an-id".into(), ..valid.clone()},
+            WorkshopSource {license:"Unspecified".into(), ..valid},
+        ] {
+            let mut draft = sample();
+            draft.workshop_source = Some(invalid);
+            assert!(validate(&draft).is_err());
+        }
     }
 
     #[test]

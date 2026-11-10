@@ -5,6 +5,7 @@ mod model;
 mod vtf_decode;
 mod updates;
 mod drafts;
+mod workshop;
 
 use base64::{Engine, engine::general_purpose::STANDARD};
 use image::{DynamicImage, GenericImageView, ImageFormat};
@@ -1566,6 +1567,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updates::UpdateState::default())
+        .manage(workshop::WorkshopState::default())
         .manage(AppState::default())
         .setup(move |app| {
             if minimized {
@@ -1576,6 +1578,12 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            workshop::workshop_list, workshop::workshop_signin,
+            workshop::workshop_account, workshop::workshop_signout, workshop::workshop_stage,
+            workshop::workshop_pending, workshop::workshop_discard, workshop::workshop_publish, workshop::workshop_preview,
+            workshop::workshop_download, workshop::workshop_moderate, workshop::workshop_profile,
+            workshop::workshop_submissions,
+            workshop::workshop_bans,
             updates::check_update,
             updates::update_log,
             updates::install_update,
@@ -1669,6 +1677,56 @@ mod tests {
         }
     }
 
+        #[test]
+        #[ignore = "Regenerates public workshop path/dimension allowlist from installed content"]
+        fn generate_workshop_catalog() {
+            let root = std::env::var("PERP_TEST_CONTENT").expect("Set PERP_TEST_CONTENT");
+            let mut index = ContentIndex::default();
+            collect_loose(Path::new(&root), &mut index.files);
+            let data = attachment_data();
+            let mut models = serde_json::Map::new();
+            let mut materials = serde_json::Map::new();
+            let mut paths: Vec<String> = data["weapons"].as_object().unwrap().keys().cloned().collect();
+            paths.extend(data["attachments"].as_object().unwrap().values()
+                .map(|part| part["model"].as_str().unwrap().to_owned()));
+            paths.extend(compatible_models(&index.files).into_iter()
+                .filter_map(|(path, compatible)| compatible.then_some(path)));
+            paths.sort(); paths.dedup();
+            for path in paths {
+                let detail = build_model(&index, &path).unwrap();
+                let mut slots: std::collections::BTreeMap<String, Vec<serde_json::Value>> = std::collections::BTreeMap::new();
+                if let Some(weapon) = data["weapons"].get(&path) {
+                    for name in weapon["compatible"].as_array().unwrap().iter().chain(weapon["defaults"].as_array().unwrap()) {
+                        let slot = data["attachments"][name.as_str().unwrap()]["slot"].as_str().unwrap().to_owned();
+                        slots.entry(slot).or_default().push(name.clone());
+                    }
+                }
+                let mut parts = std::collections::BTreeSet::from([path.clone()]);
+                if let Some(weapon) = data["weapons"].get(&path) {
+                    let mut names: Vec<_> = weapon["compatible"].as_array().unwrap().iter()
+                        .chain(weapon["defaults"].as_array().unwrap()).collect();
+                    if let Some(requirements) = weapon["requirements"].as_object() {
+                        names.extend(requirements.values().flat_map(|parts| parts.as_array().unwrap()));
+                    }
+                    for name in names {
+                        parts.insert(data["attachments"][name.as_str().unwrap()]["model"].as_str().unwrap().to_owned());
+                    }
+                }
+                models.insert(path.clone(), serde_json::json!({"slots":slots,"parts":parts}));
+                for material in &detail.materials {
+                    if let (Some(vmt), Some(vtf)) = (&material.vmt_path, &material.vtf_path) {
+                        if is_skin_material_path(vmt) && is_skin_material_path(vtf)
+                            && material.width.is_some_and(|width| width > 0) && material.height.is_some_and(|height| height > 0) {
+                            materials.insert(format!("{path}|{vmt}"), serde_json::json!({
+                                "vtf":vtf, "width":material.width, "height":material.height
+                            }));
+                        }
+                    }
+                }
+            }
+            fs::write(Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("workshop").join("src").join("catalog.json"),
+                serde_json::to_vec_pretty(&serde_json::json!({"models":models,"materials":materials})).unwrap()).unwrap();
+        }
     #[test]
     fn clipboard_image_conversion_preserves_rgba_and_dimensions() {
         let pixels = vec![210, 100, 30, 0, 40, 50, 60, 32, 90, 80, 70, 255, 1, 2, 3, 128];

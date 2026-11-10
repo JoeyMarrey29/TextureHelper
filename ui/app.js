@@ -116,6 +116,7 @@ function createSourceMaterial(info, color = 0xffffff) {
   return applySourceMaterialFlags(material, info);
 }
 const thumbnailCache = new Map(), thumbnailPending = new Set(), thumbnailQueue = [];
+const draftThumbnailVersions = new Map();
 let thumbnailWorking = false;
 const thumbnailCanvas = document.createElement('canvas'); thumbnailCanvas.width = thumbnailCanvas.height = 80;
 let thumbnailRenderer;
@@ -123,7 +124,7 @@ const thumbnailObserver = new IntersectionObserver(entries => {
   for (const entry of entries) {
     if (!entry.isIntersecting) continue;
     thumbnailObserver.unobserve(entry.target);
-    const path = entry.target.dataset.path;
+    const path = entry.target.dataset.thumbnailKey || entry.target.dataset.path;
     if (!thumbnailCache.has(path) && !thumbnailPending.has(path)) { thumbnailPending.add(path); thumbnailQueue.push({path, target: entry.target}); processThumbnails(); }
   }
 }, {root: $('model-list'), rootMargin: '100px'});
@@ -134,15 +135,59 @@ async function processThumbnails() {
   while (thumbnailQueue.length) {
     const {path, target} = thumbnailQueue.shift();
     try {
-      const detail = await invoke('open_model', {path});
+      if (!target.isConnected) { thumbnailPending.delete(path); continue; }
+      const draft = target.dataset.draftId ? await invoke('load_draft', {id:target.dataset.draftId}) : null;
+      const detail = draft ? await draftThumbnailModel(draft) : await invoke('open_model', {path});
       const dataUrl = await makeThumbnail(detail);
       thumbnailCache.set(path, dataUrl);
       if (target.isConnected) { const image = document.createElement('img'); image.src = dataUrl; image.alt = ''; target.querySelector('.model-thumb').replaceChildren(image); }
-    } catch (error) { console.warn(`Thumbnail unavailable for ${path}`, error); }
+      for (const card of $('model-list').querySelectorAll('[data-thumbnail-key]')) {
+        if (card.dataset.thumbnailKey === path) {
+          const image = document.createElement('img'); image.src = dataUrl; image.alt = '';
+          card.querySelector('.model-thumb').replaceChildren(image);
+        }
+      }
+    } catch (error) {
+      console.warn(`Thumbnail unavailable for ${path}`, error);
+      if (target.isConnected) { target.querySelector('.model-thumb').textContent = 'Preview unavailable'; target.title = `Preview unavailable: ${error}`; }
+    }
     thumbnailPending.delete(path);
     await new Promise(resolve => setTimeout(resolve, 20));
   }
   thumbnailWorking = false;
+}
+
+async function draftThumbnailModel(draft) {
+  const gun = await invoke('open_model', {path:draft.modelPath});
+  const parts = [{detail:gun, matrix:new THREE.Matrix4()}];
+  const weapon = attachmentData.weapons[draft.modelPath];
+  if (weapon) {
+    const resolved = resolveLoadout(weapon, new Map(Object.entries(draft.slotSelections)));
+    for (const entry of resolved.values()) {
+      const info = attachmentInfo(entry.name);
+      const sequence = info.sequences?.[resolved.has('SLOT_SIGHT') ? 'withSight' : 'withoutSight'];
+      const detail = await loadPart(info.model, sequence);
+      const mount = bonemergeMount(gun, detail);
+      if (!mount) throw new Error(`No mounting bone for ${entry.name}`);
+      parts.push({detail, matrix:mount.matrix});
+    }
+  }
+  const materials = [], meshes = [];
+  for (const {detail, matrix} of parts) {
+    const offset = materials.length;
+    materials.push(...detail.materials.map(material => {
+      const edit = draft.textures.find(texture => texture.partPath === detail.path && texture.vmtPath === material.vmtPath)
+        || draft.textures.find(texture => texture.vtfPath && texture.vtfPath === material.vtfPath);
+      return edit ? {...material, image:edit.png} : material;
+    }));
+    for (const mesh of detail.meshes) {
+      const positions = new THREE.Float32BufferAttribute(mesh.positions, 3);
+      const normals = new THREE.Float32BufferAttribute(mesh.normals, 3);
+      positions.applyMatrix4(matrix); normals.applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(matrix));
+      meshes.push({...mesh, materialIndex:mesh.materialIndex + offset, positions:positions.array, normals:normals.array});
+    }
+  }
+  return {materials, meshes};
 }
 
 async function makeThumbnail(detail) {
@@ -597,6 +642,7 @@ async function setSlotAttachment(slot, value) {
 }
 function attachmentName(item) { return item.path.split('/').pop().replace(/\.mdl$/i, '').replace(/_/g, ' '); }
 function renderList() {
+  renderDraftActions();
   $('import-skin').classList.toggle('hidden', libraryView !== 'skins');
   $('library-title').textContent = libraryView === 'models' ? 'Models' : 'Custom skins';
   $('search').placeholder = libraryView === 'models' ? 'Search model paths' : 'Search custom skins';
@@ -670,7 +716,21 @@ function renderCustomSkins() {
     + (installAvailable ? '' : ' Choose your Garry\'s Mod folder to check installed status or uninstall.');
   const list = $('model-list'); list.replaceChildren();
   for (const draft of saved) {
-    const row = document.createElement('div'); row.className = 'skin-item'; row.dataset.draftId = draft.id;
+    const row = document.createElement(draft.archived ? 'div' : 'button');
+    row.className = `skin-item${draftSession?.id === draft.id ? ' active' : ''}`; row.dataset.draftId = draft.id;
+    if (!draft.archived) {
+      row.type = 'button'; row.setAttribute('aria-label', `Open draft: ${draft.name}`);
+      row.addEventListener('click', () => openDraft(draft));
+      const cacheKey = `draft:${draft.id}:${draftThumbnailVersions.get(draft.id) || 0}`;
+      row.dataset.thumbnailKey = cacheKey;
+      const preview = document.createElement('span'); preview.className = 'model-thumb draft-thumb';
+      if (thumbnailCache.has(cacheKey)) {
+        const image = document.createElement('img'); image.src = thumbnailCache.get(cacheKey); image.alt = '';
+        preview.append(image);
+      } else preview.textContent = 'Loading preview';
+      row.append(preview);
+      if (!thumbnailCache.has(cacheKey)) thumbnailObserver.observe(row);
+    }
     const detail = document.createElement('div'); detail.className = 'skin-detail';
     const name = document.createElement('strong'); name.textContent = draft.name;
     const status = document.createElement('small'); status.className = `skin-status ${draft.installedCount ? 'installed' : 'saved'}`;
@@ -682,11 +742,12 @@ function renderCustomSkins() {
     const tools = document.createElement('div'); tools.className = 'skin-tools';
     const button = (label, action) => { const item = document.createElement('button'); item.type = 'button'; item.className = 'button secondary';
       item.textContent = label; item.addEventListener('click', action); actions.append(item); return item; };
-    if (!draft.archived) button('Open draft', () => openDraft(draft));
-    if (draft.installableCount > draft.installedCount) button('Install', () => restoreSavedSkin(draft)).disabled = !installAvailable;
-    if (draft.installedCount) button('Uninstall', () => uninstallSavedDraft(draft));
-    const share = button('Export skin', () => exportSkin('export_draft', draft.id)); tools.append(share);
-    const remove = button('Delete skin', () => deleteSavedDraft(draft)); remove.classList.add('danger'); tools.append(remove);
+    if (draft.archived) {
+      if (draft.installableCount > draft.installedCount) button('Install', () => restoreSavedSkin(draft)).disabled = !installAvailable;
+      if (draft.installedCount) button('Uninstall', () => uninstallSavedDraft(draft));
+      const share = button('Export skin', () => exportSkin('export_draft', draft.id)); tools.append(share);
+      const remove = button('Delete skin', () => deleteSavedDraft(draft)); remove.classList.add('danger'); tools.append(remove);
+    }
     detail.append(name, status, path, actions, tools); row.append(detail); list.append(row);
   }
   for (const skin of found) {
@@ -716,8 +777,13 @@ function renderCustomSkins() {
 async function refreshSkins() {
   [customSkins, drafts] = await Promise.all([invoke('list_custom_skins'), invoke('list_drafts')]);
   renderList();
+  renderDraftActions();
   if (model) renderMaterials();
 }
+
+window.addEventListener('focus', () => {
+  refreshSkins().catch(error => toast(`Saved skins could not be refreshed: ${error}`, true));
+});
 
 async function exportSkin(command, id) {
   try {
@@ -725,6 +791,49 @@ async function exportSkin(command, id) {
     const path = await invoke(command, {id});
     if (path) toast(`Skin exported: ${path}`);
   } catch (error) { toast(`Skin could not be exported: ${error}`, true); }
+}
+
+function openWorkshop() {
+  const frame = $('workshop-frame');
+  if (!frame.getAttribute('src')) frame.src = 'workshop.html';
+  else frame.contentWindow.dispatchEvent(new Event('focus'));
+  if (!$('workshop-dialog').open) $('workshop-dialog').showModal();
+}
+$('open-workshop').addEventListener('click', openWorkshop);
+$('close-workshop').addEventListener('click', () => $('workshop-dialog').close());
+$('workshop-dialog').addEventListener('close', () => {
+  refreshSkins().catch(error => toast(`Saved skins could not be refreshed: ${error}`, true));
+});
+async function stageWorkshopDraft(draft) {
+  try {
+    const account = await invoke('workshop_account', {poll:false});
+    if (!account.steamId) {
+      openWorkshop();
+      toast('Sign in with Steam in Skin Workshop, then choose Publish to workshop again.');
+      return;
+    }
+    if (!await openDraft(draft)) throw new Error('Draft could not be opened for preview');
+    await saveDraft();
+    const overlays = [];
+    group.traverse(object => { if (object.userData.selectionOverlay) { overlays.push([object, object.visible]); object.visible = false; } });
+    const rotation = group.quaternion.clone(), oldDistance = distance;
+    let preview;
+    try {
+      distance = fitDistance; camera.position.set(0, 0, distance); camera.lookAt(0, 0, 0);
+      setView('front'); renderer.render(scene, camera);
+      const shot = document.createElement('canvas'), scale = Math.min(1, 1024 / Math.max(canvas.width, canvas.height));
+      shot.width = Math.max(1, Math.round(canvas.width * scale)); shot.height = Math.max(1, Math.round(canvas.height * scale));
+      shot.getContext('2d').drawImage(canvas, 0, 0, shot.width, shot.height);
+      preview = shot.toDataURL('image/png');
+    } finally {
+      group.quaternion.copy(rotation); distance = oldDistance;
+      camera.position.set(0, 0, distance); camera.lookAt(0, 0, 0);
+      for (const [object, visible] of overlays) object.visible = visible;
+      renderer.render(scene, camera);
+    }
+    await invoke('workshop_stage', {id:draft.id, preview});
+    openWorkshop();
+  } catch (error) { toast(`Workshop preview could not be prepared: ${error}`, true); }
 }
 
 $('import-skin').addEventListener('click', async () => {
@@ -741,12 +850,37 @@ $('import-skin').addEventListener('click', async () => {
 });
 
 function renderDraftStatus() {
+  renderDraftActions();
   $('draft-tools').classList.toggle('hidden', !model);
   $('save-draft').disabled = !edits.size;
   if (!draftSession) return;
   if (document.activeElement !== $('draft-name')) $('draft-name').value = draftSession.name;
   $('draft-status').textContent = draftSession.status || 'Import a texture to start autosaving.';
   $('draft-status').classList.toggle('error', draftSession.failed || false);
+}
+
+function renderDraftActions() {
+  const draft = drafts.find(item => item.id === draftSession?.id && !item.archived);
+  $('draft-actions').classList.toggle('hidden', !draft);
+  if (!draft) return;
+  $('install-draft').hidden = draft.installableCount <= draft.installedCount;
+  $('install-draft').disabled = !installAvailable;
+  $('uninstall-draft').hidden = !draft.installedCount;
+}
+for (const [id, action] of [
+  ['publish-draft', stageWorkshopDraft],
+  ['export-draft', draft => exportSkin('export_draft', draft.id)],
+  ['install-draft', restoreSavedSkin],
+  ['uninstall-draft', uninstallSavedDraft],
+  ['delete-draft', deleteSavedDraft],
+]) {
+  $(id).addEventListener('click', async () => {
+    const draft = drafts.find(item => item.id === draftSession?.id && !item.archived);
+    if (!draft) { toast('Open a saved draft first.', true); return; }
+    $(id).disabled = true;
+    try { await action(draft); }
+    finally { $(id).disabled = false; renderDraftActions(); }
+  });
 }
 
 function saveDraft() {
@@ -756,6 +890,7 @@ function saveDraft() {
   const snapshot = {
     version: 1, name: session.name, modelPath: model.path, slotSelections: Object.fromEntries(slotSelections),
     ...(session.aiOriginals?.length ? {aiOriginals:session.aiOriginals} : {}),
+    ...(session.workshopSource ? {workshopSource:session.workshopSource} : {}),
     activePartPath, activeMaterialKey: skinKey(activeMaterial()) || null,
     textures: [...edits].map(([key, edit]) => ({
       key, partPath: edit.partPath, vmtPath: edit.vmtPath || null,
@@ -766,6 +901,9 @@ function saveDraft() {
   const job = draftSaveQueue.then(async () => {
     const saved = await invoke('save_draft', {draft: {...snapshot, id: session.id}});
     session.id = saved.id;
+    const previewVersion = draftThumbnailVersions.get(saved.id) || 0;
+    thumbnailCache.delete(`draft:${saved.id}:${previewVersion}`);
+    draftThumbnailVersions.set(saved.id, previewVersion + 1);
     session.status = 'Saved locally · safe to close'; session.failed = false;
     await refreshSkins();
     if (draftSession === session) renderDraftStatus();
@@ -808,7 +946,8 @@ async function openDraft(summary) {
         throw new Error(`Saved texture ${edit.key} no longer matches the content's ${material.width} × ${material.height} dimensions.`);
       }
     }
-    draftSession = {id: draft.id, name: draft.name, status: 'Saved locally · restored', failed: false, aiOriginals:draft.aiOriginals || []};
+    draftSession = {id: draft.id, name: draft.name, status: 'Saved locally · restored', failed: false,
+      aiOriginals:draft.aiOriginals || [], workshopSource:draft.workshopSource};
     for (const edit of restored) edits.set(edit.key, edit);
     activePartPath = assembly.has(draft.activePartPath) ? draft.activePartPath : detail.path;
     const index = activePart().materials.findIndex(material => skinKey(material) === draft.activeMaterialKey);
@@ -819,7 +958,8 @@ async function openDraft(summary) {
       part.materials.some(material => skinKey(material) === edit.key)));
     toast(unavailable.length ? `Draft opened. ${unavailable.length} edited textures belong to parts not currently mounted; those edits remain saved.`
       : 'Draft opened with its attachments and edited textures.');
-  } catch (error) { toast(`Draft could not be opened: ${error}`, true); }
+    return true;
+  } catch (error) { toast(`Draft could not be opened: ${error}`, true); return false; }
 }
 
 async function uninstallSavedDraft(draft) {
@@ -857,6 +997,8 @@ async function deleteSavedDraft(draft) {
   try {
     await draftSaveQueue;
     await invoke('delete_draft', {id: draft.id});
+    thumbnailCache.delete(`draft:${draft.id}:${draftThumbnailVersions.get(draft.id) || 0}`);
+    draftThumbnailVersions.delete(draft.id);
     if (draftSession?.id === draft.id) {
       draftSession = {id: null, name: `${weaponData()?.name || attachmentName(model)} draft`, status: ''};
       edits.clear(); importedPng = null; importedImage = null;
@@ -1210,16 +1352,30 @@ document.querySelectorAll('[data-compatibility]').forEach(button => button.addEv
   renderList();
 }));
 $('choose-folder').addEventListener('click', async () => { const folder = await invoke('choose_content_folder'); if (folder) scan(folder); });
+let scanning = false;
+$('refresh-models').addEventListener('click', () => {
+  const folder = localStorage.getItem('contentFolder');
+  if (folder) scan(folder);
+});
 async function scan(folder) {
+  if (scanning) return;
+  scanning = true;
+  $('refresh-models').disabled = true; $('choose-folder').disabled = true;
   $('scan-info').textContent = 'Indexing addons…'; $('source-label').textContent = folder;
   try {
+    await saveDraft();
     const result = await invoke('scan_content', {root: folder});
+    partCache.clear(); thumbnailCache.clear();
     models = result.models; customSkins = result.customSkins; contentScanned = true; installAvailable = result.hasInstallRoot; localStorage.setItem('contentFolder', folder); $('source-label').textContent = result.root;
     drafts = await invoke('list_drafts');
     document.querySelector('.source-dot').classList.add('ready');
     scanSummary = `${result.archiveCount} GMAs indexed · ${result.modelCount.toLocaleString()} PERPHEADS models${result.hasInstallRoot ? '' : ' · choose GMod on export'}`;
     renderList();
   } catch (error) { $('scan-info').textContent = String(error); toast(String(error), true); }
+  finally {
+    scanning = false; $('choose-folder').disabled = false;
+    $('refresh-models').disabled = !localStorage.getItem('contentFolder');
+  }
 }
 const previousFolder = localStorage.getItem('contentFolder'); if (previousFolder) scan(previousFolder);
 else refreshSkins().catch(error => toast(`Saved skins could not be loaded: ${error}`, true));

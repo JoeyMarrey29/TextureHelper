@@ -1,0 +1,23 @@
+{
+  "name": "texture-helper-workshop",
+  "account_id": "85516bdb710a16c88eeebb59b52146da",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "PUBLIC_ORIGIN": "https://texture-helper-workshop.work-855.workers.dev",
+    "PUBLISHING_ENABLED": "true"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "texture-helper-workshop",
+      "database_id": "76f94409-87f4-4ace-b674-552d1009f41e",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": false
+  }
+}
