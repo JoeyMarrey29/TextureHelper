@@ -1804,6 +1804,46 @@ mod tests {
     }
 
     #[test]
+    fn scar_flip_sights_keep_materials_when_folded_and_install_every_material() {
+        let Ok(root) = std::env::var("PERP_TEST_CONTENT") else { return };
+        let mut index = ContentIndex::default();
+        collect_loose(Path::new(&root), &mut index.files);
+        let install = tempfile::tempdir().unwrap();
+        fs::create_dir(install.path().join("addons")).unwrap();
+        fs::create_dir(install.path().join("data")).unwrap();
+        let image = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(4, 4, image::Rgba([190, 40, 60, 255])));
+        let bytes = encode_skin_vtf(&image, false).unwrap();
+        let mut installed = std::collections::HashSet::new();
+        let mut textures = std::collections::HashSet::new();
+        for path in ["models/perpheads/weapons/attachments/rifle_flip_front.mdl",
+            "models/perpheads/weapons/attachments/rifle_flip_rear.mdl"] {
+            let up = build_posed_model(&index, path, Some(0)).unwrap();
+            let down = build_posed_model(&index, path, Some(1)).unwrap();
+            assert!(is_skin_target_model(path));
+            assert!(!down.materials.is_empty());
+            assert_eq!(up.materials.len(), down.materials.len());
+            for (up, down) in up.materials.iter().zip(&down.materials) {
+                assert_eq!(up.vmt_path, down.vmt_path);
+                assert_eq!(up.vtf_path, down.vtf_path);
+                let vmt = down.vmt_path.as_deref().unwrap();
+                let vtf = down.vtf_path.as_deref().unwrap();
+                assert!(is_skin_material_path(vmt), "{vmt}");
+                assert!(is_skin_material_path(vtf), "{vtf}");
+                assert!(down.image.is_some());
+                if installed.insert(vmt.to_owned()) {
+                    let shared = !textures.insert(vtf.to_owned());
+                    write_custom_skin_shared(install.path(), vtf, vmt, down.vmt_text.as_deref().unwrap(), &bytes, shared).unwrap();
+                }
+                let target = install.path().join("data").join("phcustomtextures").join(vmt.trim_start_matches("materials/"));
+                assert!(fs::read_to_string(target).unwrap().contains(&format!("{}_custom",
+                    vtf.trim_start_matches("materials/").trim_end_matches(".vtf"))));
+            }
+        }
+        assert!(installed.len() >= 2, "Both sight body and sight details must be installed");
+        assert!(custom_skin_inventory(install.path()).iter().all(|skin| skin.has_vtf));
+    }
+
+    #[test]
     fn alpha_install_encoding_preserves_rgb_and_keeps_alpha_by_default() {
         let image = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(4, 4, image::Rgba([70, 90, 130, 0])));
         let keep = vtf_decode::decode_highres(&encode_skin_vtf(&image, false).unwrap()).unwrap().to_rgba8();

@@ -350,8 +350,15 @@ function skinMaterialPath(path) {
 function supportedMaterial(material, path = activePartPath) {
   return skinTargetModel(path) && skinMaterialPath(material?.vmtPath) && skinMaterialPath(material?.vtfPath);
 }
+function syncSharedTextureEdits() {
+  for (const part of assembly.values()) for (const material of part.materials) {
+    const key = skinKey(material), edit = textureEdit(material);
+    if (key && edit && !edits.has(key)) edits.set(key, {...edit, key, partPath:part.path,
+      vmtPath:material.vmtPath, vtfPath:material.vtfPath, vmtText:material.vmtText});
+  }
+}
 function updateInstallAll() {
-  const ready = [...assembly.values()].flatMap(part => part.materials.filter(material => supportedMaterial(material, part.path) && edits.has(skinKey(material))));
+  const ready = [...assembly.values()].flatMap(part => part.materials.filter(material => supportedMaterial(material, part.path) && textureEdit(material)));
   $('install-all').disabled = ready.length === 0;
   $('install-all').textContent = `Install all edited textures (${new Set(ready.map(textureKey)).size})`;
 }
@@ -744,6 +751,7 @@ function renderDraftStatus() {
 
 function saveDraft() {
   if (!model || !edits.size || !draftSession) return draftSaveQueue;
+  syncSharedTextureEdits();
   const session = draftSession;
   const snapshot = {
     version: 1, name: session.name, modelPath: model.path, slotSelections: Object.fromEntries(slotSelections),
@@ -1183,7 +1191,7 @@ $('export-vtf').addEventListener('click', () => runSkinInstall(async () => {
 $('install-all').addEventListener('click', () => runSkinInstall(async () => {
   const byMaterial = new Map();
   for (const part of assembly.values()) for (const material of part.materials) {
-    const edit = edits.get(skinKey(material));
+    const edit = textureEdit(material);
     if (edit && supportedMaterial(material, part.path)) byMaterial.set(skinKey(material), {
       ...edit, vtfPath: material.vtfPath, vmtPath: material.vmtPath, vmtText: material.vmtText,
     });

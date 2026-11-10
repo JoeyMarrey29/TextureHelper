@@ -43,6 +43,7 @@ The experimental AI integration has been removed. Previously saved drafts remain
 - Existing different skins are not overwritten. Use **Custom skins > Uninstall** first; the saved copy remains available.
 - **Delete skin** removes the saved copy and its matching installed textures/materials, including attachments. Shared textures still referenced by another skin and files changed since saving are kept. **Uninstall** removes the matching installation but keeps your saved copy. If no game folder is selected, deletion explicitly warns that only the saved copy can be removed.
 - Jarheads sight bodies are supported. Reticles are preview-only because PERPHEADS excludes them from custom skins.
+- Flip iron sights have separate body/detail textures from the weapon receiver. Edit those textures too, then use **Install all edited textures** (or Install on the saved draft). Shared texture edits are saved and installed for every currently mounted material using them, including parts mounted after the import. Up/down poses use the same material paths.
 
 ## Share complete skins
 

@@ -167,6 +167,13 @@ window.previewTest = {
     activePartPath = gun.path; materialIndex = 0;
     renderAssembly(); renderMaterials();
   },
+  removeSharedOwnerEdit() {
+    const stock = assembly.get('models/perpheads/weapons/attachments/stock_ak101.mdl');
+    const key = skinKey(stock.materials[0]);
+    edits.delete(key);
+    renderAssembly(); renderMaterials();
+    return key;
+  },
   uvLayers() { return activeTextureLayers().map(layer => ({
     path: layer.part.path, index: layer.index, key: uvLayerKey(layer),
     triangles: layer.part.meshes.filter(mesh => mesh.materialIndex === layer.index).reduce((n, mesh) => n + mesh.uvs.length / 6, 0)
@@ -1019,6 +1026,20 @@ with sync_playwright() as playwright:
         assert "Update check failed" == page.locator("#update-status").inner_text()
         page.locator("#close-updates").click()
         print("PASS: automatic update check, logo placement, safe release log, confirmation, save-before-install and explicit failures")
+
+        page.evaluate("previewTest.removeSharedOwnerEdit()")
+        export_count = page.evaluate("draftMock.exports.length")
+        page.locator("#install-all").click()
+        page.locator("#alpha-remove").click()
+        page.wait_for_function("count => draftMock.exports.length === count + 1", arg=export_count)
+        shared = page.evaluate("draftMock.exports.at(-1)")
+        assert len(shared) == 2, "Install all skipped a material that previewed an inherited shared edit"
+        assert len({texture["vmtPath"] for texture in shared}) == 2
+        assert len({texture["pngBase64"] for texture in shared}) == 1
+        key = page.evaluate("previewTest.removeSharedOwnerEdit()")
+        page.evaluate("previewTest.saveDraft()")
+        assert page.evaluate("key => draftMock.saved.get(previewTest.draftState().id).textures.some(texture => texture.key === key)", key)
+        print("PASS: inherited shared texture previews install every owner and persist material mappings to drafts")
 
         if args.screenshot:
             for gun, sight, suffix in (("g36", "", "-g36"), ("m4a1", "", "-irons-up"), ("m4a1", "eotech", "-irons-down")):
