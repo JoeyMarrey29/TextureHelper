@@ -146,6 +146,9 @@ test('Steam names and avatars are bound to the verified ID and safe image hosts'
     `<profile><steamID64>${id}</steamID64><steamID><![CDATA[Name <not markup>]]></steamID><avatarMedium><![CDATA[${avatar}]]></avatarMedium></profile>`;
   assert.equal(steamProfile(xml(), actor).name, 'Name <not markup>');
   assert.ok(steamProfile(xml(actor, `https://avatars.fastly.steamstatic.com/${'a'.repeat(40)}_medium.jpg`), actor).avatar);
+  assert.equal(steamProfile(xml(actor, `https://avatars.cloudflare.steamstatic.com/${'a'.repeat(40)}_medium.jpg`), actor).avatar,
+    `https://avatars.steamstatic.com/${'a'.repeat(40)}_medium.jpg`);
+  assert.throws(() => steamProfile(xml(actor, 'https://avatars.cloudflare.steamstatic.com.evil.example/a.jpg'), actor));
   assert.throws(() => steamProfile(xml('76561198000000002'), actor));
   assert.throws(() => steamProfile(xml(actor, 'https://evil.example/track.jpg'), actor));
   assert.throws(() => steamProfile(xml(actor, 'https://avatars.steamstatic.com.evil.example/a.jpg'), actor));

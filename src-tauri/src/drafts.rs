@@ -1,5 +1,6 @@
 use super::*;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, io::{Read, Write}, time::{SystemTime, UNIX_EPOCH}};
 
 const MAX_SHARE_BYTES: u64 = 256 * 1024 * 1024;
@@ -13,7 +14,7 @@ struct SkinPackage {
     draft: Draft,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DraftTexture {
     pub key: String,
@@ -29,9 +30,9 @@ pub struct DraftTexture {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SavedFile {
-    root: String,
-    relative: String,
-    bytes: String,
+    pub(super) root: String,
+    pub(super) relative: String,
+    pub(super) bytes: String,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -66,11 +67,15 @@ pub struct Draft {
     pub active_material_key: Option<String>,
     pub textures: Vec<DraftTexture>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub component_textures: Vec<shared_texture::ComponentTexture>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub component_error: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ai_originals: Vec<AiOriginal>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workshop_source: Option<WorkshopSource>,
     #[serde(default)]
-    archived_files: Vec<SavedFile>,
+    pub(super) archived_files: Vec<SavedFile>,
 }
 
 #[derive(Serialize)]
@@ -84,6 +89,7 @@ pub struct DraftSummary {
     installable_count: usize,
     archived: bool,
     installed_ids: Vec<String>,
+    component_error: Option<String>,
 }
 
 pub(super) fn storage(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -140,6 +146,20 @@ fn validate(draft: &Draft) -> Result<(), String> {
         }
     }
     if draft.ai_originals.len() > 24 { return Err("Too many AI originals in this draft".into()); }
+    if draft.component_textures.len() > 128 || (!draft.component_textures.is_empty() && !draft.archived_files.is_empty()) {
+        return Err("Invalid component texture count or archived component textures".into());
+    }
+    let mut components = std::collections::HashSet::new();
+    let mut component_pixels = 0_u64;
+    for component in &draft.component_textures {
+        if !is_skin_target_model(&component.part_path) || !safe_relative(&component.part_path)
+            || !components.insert((key(&component.part_path), component.material_index)) {
+            return Err("Invalid or duplicate component texture".into());
+        }
+        let image = textures::decode_texture(&png_bytes(&component.png)?)?;
+        component_pixels += image.width() as u64 * image.height() as u64;
+        if component_pixels > 64 * 1024 * 1024 { return Err("Component sources exceed the 64-million-pixel working limit".into()); }
+    }
     let mut ids = std::collections::HashSet::new();
     for original in &draft.ai_originals {
         if original.id.is_empty() || original.id.len() > 512 || original.label.len() > 1024 || !ids.insert(&original.id) {
@@ -179,12 +199,48 @@ fn validate(draft: &Draft) -> Result<(), String> {
     Ok(())
 }
 
+fn component_source_id(png: &str) -> String {
+    format!("{:x}", Sha256::digest(png.as_bytes()))
+}
+
+fn compact_component_sources(draft: &mut Draft) {
+    let mut seen = std::collections::HashSet::new();
+    for component in &mut draft.component_textures {
+        let source_id = component_source_id(&component.png);
+        component.source_id = Some(source_id.clone());
+        if !seen.insert(source_id) { component.png.clear(); }
+    }
+}
+
+fn expand_component_sources(draft: &mut Draft) -> Result<(), String> {
+    let mut sources = BTreeMap::new();
+    for component in &draft.component_textures {
+        let Some(source_id) = &component.source_id else { continue; };
+        if component.png.is_empty() { continue; }
+        if component_source_id(&component.png) != *source_id {
+            return Err("Draft component texture source checksum does not match".into());
+        }
+        if let Some(previous) = sources.insert(source_id.clone(), component.png.clone()) {
+            if previous != component.png { return Err("Draft component texture source ID is ambiguous".into()); }
+        }
+    }
+    for component in &mut draft.component_textures {
+        let Some(source_id) = &component.source_id else { continue; };
+        if component.png.is_empty() {
+            component.png = sources.get(source_id).ok_or("Draft component texture source is missing")?.clone();
+        }
+        component.source_id = None;
+    }
+    Ok(())
+}
+
 pub(super) fn read_at(root: &Path, id: &str) -> Result<Draft, String> {
     let bytes = fs::read(draft_path(root, id)?).map_err(|error| error.to_string())?;
-    let draft: Draft = serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
+    let mut draft: Draft = serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
     if draft.id.as_deref() != Some(id) {
         return Err("Draft ID does not match its filename".into());
     }
+    expand_component_sources(&mut draft)?;
     validate(&draft)?;
     Ok(draft)
 }
@@ -199,7 +255,9 @@ fn save_at(root: &Path, mut draft: Draft) -> Result<Draft, String> {
         return Err("Draft no longer exists; reopen or start a new draft".into());
     }
     let target = draft_path(root, draft.id.as_deref().unwrap())?;
-    let bytes = serde_json::to_vec(&draft).map_err(|error| error.to_string())?;
+    let mut compact = draft.clone();
+    compact_component_sources(&mut compact);
+    let bytes = serde_json::to_vec(&compact).map_err(|error| error.to_string())?;
     let mut temp = tempfile::NamedTempFile::new_in(root).map_err(|error| error.to_string())?;
     temp.write_all(&bytes).map_err(|error| error.to_string())?;
     temp.as_file().sync_all().map_err(|error| error.to_string())?;
@@ -247,6 +305,35 @@ fn files_match(install: &Path, files: &[SavedFile]) -> Result<bool, String> {
     Ok(true)
 }
 
+fn editable_file_matches(actual: &[u8], expected: &[u8], kind: &str) -> bool {
+    if actual == expected { return true; }
+    if kind == "vmt" {
+        let (Ok(actual), Ok(expected)) = (std::str::from_utf8(actual), std::str::from_utf8(expected)) else { return false; };
+        let re = Regex::new(r#"(?im)^(\s*"?\$basetexture"?\s+)(?:"([^"\r\n]+)"|([^"\s]+))"#).unwrap();
+        let normalize = |text: &str| re.replace(text, |capture: &regex::Captures| {
+            format!("{}\"{}\"", &capture[1], base_texture_path(capture.get(2).or_else(|| capture.get(3)).unwrap().as_str()))
+        }).into_owned();
+        return normalize(actual) == normalize(expected);
+    }
+    if kind != "vtf" { return false; }
+    // Imported VTFs can use different compression/header flags but have identical pixels.
+    match (vtf_decode::decode_highres(actual), vtf_decode::decode_highres(expected)) {
+        (Ok(actual), Ok(expected)) => actual.to_rgba8() == expected.to_rgba8(),
+        _ => false,
+    }
+}
+
+fn editable_files_match(install: &Path, files: &[SavedFile]) -> Result<bool, String> {
+    for file in files {
+        let path = file_target(install, file)?;
+        if !path.is_file() { return Ok(false); }
+        let actual = fs::read(path).map_err(|error| error.to_string())?;
+        let expected = STANDARD.decode(&file.bytes).map_err(|error| error.to_string())?;
+        if !editable_file_matches(&actual, &expected, &file.root) { return Ok(false); }
+    }
+    Ok(true)
+}
+
 fn summary(draft: &Draft, install: Option<&Path>) -> Result<DraftSummary, String> {
     let archived = !draft.archived_files.is_empty();
     let (mut installed_count, mut installable_count) = (0, 0);
@@ -263,8 +350,8 @@ fn summary(draft: &Draft, install: Option<&Path>) -> Result<DraftSummary, String
     } else {
         for texture in draft.textures.iter().filter(|texture| supported(texture)) {
             installable_count += 1;
-            if let Some(root) = install {
-                if files_match(root, &expected_files(texture)?)? {
+            if let Some(root) = install.filter(|_| draft.component_error.is_none()) {
+                if editable_files_match(root, &expected_files(texture)?)? {
                     installed_count += 1;
                     installed_ids.push(format!("vmt:{}", texture.vmt_path.as_deref().unwrap().trim_start_matches("materials/")));
                 }
@@ -273,15 +360,39 @@ fn summary(draft: &Draft, install: Option<&Path>) -> Result<DraftSummary, String
     }
     Ok(DraftSummary { id: draft.id.clone().ok_or("Draft has no ID")?, name: draft.name.clone(),
         model_path: draft.model_path.clone(), texture_count: draft.textures.len(),
-        installed_count, installable_count, archived, installed_ids })
+        installed_count, installable_count, archived, installed_ids, component_error:draft.component_error.clone() })
 }
 
 #[tauri::command]
-pub fn save_draft(draft: Draft, app: tauri::AppHandle) -> Result<Draft, String> {
+pub fn save_draft(mut draft: Draft, app: tauri::AppHandle, state: State<'_, AppState>) -> Result<Draft, String> {
     if !draft.archived_files.is_empty() {
         return Err("Installed-skin backups cannot be edited as assembly drafts".into());
     }
+    validate(&draft)?;
+    if draft.component_textures.is_empty() {
+        draft.component_error = None;
+    } else {
+        let previous = draft.id.as_ref().map(|id| read_at(&storage(&app)?, id)).transpose()?;
+        if let Some(previous) = previous.filter(|previous| previous.component_textures == draft.component_textures
+            && previous.textures == draft.textures && previous.model_path == draft.model_path
+            && previous.slot_selections == draft.slot_selections) {
+            // Selection/name-only autosaves reuse the atlas; every output independently recomposes and validates it.
+            draft.component_error = previous.component_error;
+        } else {
+            let index = state.0.lock().map_err(|_| "Index lock failed")?;
+            match shared_texture::flatten_draft(&index, &draft) {
+                Ok(flattened) => { draft.textures = flattened.textures; draft.component_error = None; }
+                Err(error) => draft.component_error = Some(error),
+            }
+        }
+    }
     save_at(&storage(&app)?, draft)
+}
+
+#[tauri::command]
+pub fn prepare_draft_output(id: String, app: tauri::AppHandle, state: State<'_, AppState>) -> Result<Draft, String> {
+    let draft = read_at(&storage(&app)?, &id)?;
+    shared_texture::flatten_draft(&*state.0.lock().map_err(|_| "Index lock failed")?, &draft)
 }
 
 #[tauri::command]
@@ -303,8 +414,32 @@ pub fn list_drafts(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<
 }
 
 #[tauri::command]
-pub fn load_draft(id: String, app: tauri::AppHandle) -> Result<Draft, String> {
-    read_at(&storage(&app)?, &id)
+pub fn load_draft(id: String, app: tauri::AppHandle, state: State<'_, AppState>) -> Result<LoadedDraft, String> {
+    let draft = read_at(&storage(&app)?, &id)?;
+    let (variant_ids, variant_warning) = match textures::draft_variant_ids(&app, &draft) {
+        Ok(ids) => (ids, None),
+        Err(error) => (BTreeMap::new(), Some(format!("Saved variant matching failed: {error}"))),
+    };
+    let (component_variant_ids, component_warning) = match textures::component_variant_ids(&app,
+        &*state.0.lock().map_err(|_| "Index lock failed")?, &draft) {
+        Ok(ids) => (ids, None),
+        Err(error) => (BTreeMap::new(), Some(format!("Saved component variant matching failed: {error}"))),
+    };
+    let variant_warning = match (variant_warning, component_warning) {
+        (Some(a), Some(b)) => Some(format!("{a}\n{b}")),
+        (a, b) => a.or(b),
+    };
+    Ok(LoadedDraft {draft, variant_ids, component_variant_ids, variant_warning})
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoadedDraft {
+    #[serde(flatten)]
+    draft: Draft,
+    variant_ids: BTreeMap<String, String>,
+    component_variant_ids: BTreeMap<String, String>,
+    variant_warning: Option<String>,
 }
 
 #[tauri::command]
@@ -324,7 +459,11 @@ fn delete_at(root: &Path, install: Option<&Path>, id: &str) -> Result<(), String
         for file in groups.into_iter().flatten() {
             let target = file_target(install, &file)?;
             let bytes = STANDARD.decode(&file.bytes).map_err(|error| error.to_string())?;
-            if target.is_file() && fs::read(&target).map_err(|error| error.to_string())? == bytes {
+            if target.is_file() && {
+                let actual = fs::read(&target).map_err(|error| error.to_string())?;
+                if draft.archived_files.is_empty() { editable_file_matches(&actual, &bytes, &file.root) }
+                else { actual == bytes }
+            } {
                 files.insert((file.root, file.relative), target);
             }
         }
@@ -410,6 +549,7 @@ fn validate_share(draft: &Draft) -> Result<(), String> {
 fn package_bytes(mut draft: Draft) -> Result<Vec<u8>, String> {
     validate_share(&draft)?;
     draft.id = None;
+    compact_component_sources(&mut draft);
     let bytes = serde_json::to_vec(&SkinPackage {format: SHARE_FORMAT.into(), version: 1, draft})
         .map_err(|error| error.to_string())?;
     if bytes.len() as u64 > MAX_SHARE_BYTES { return Err("Skin package exceeds 256 MiB".into()); }
@@ -422,6 +562,7 @@ pub(super) fn import_package_at(root: &Path, bytes: &[u8]) -> Result<Draft, Stri
     if package.format != SHARE_FORMAT || package.version != 1 {
         return Err("Unsupported skin package format or version".into());
     }
+    expand_component_sources(&mut package.draft).map_err(|error| format!("Invalid skin package: {error}"))?;
     validate_share(&package.draft)?;
     package.draft.id = None;
     save_at(root, package.draft)
@@ -442,18 +583,20 @@ fn export_package(draft: Draft) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-pub fn export_draft(id: String, app: tauri::AppHandle) -> Result<Option<String>, String> {
-    export_package(read_at(&storage(&app)?, &id)?)
+pub fn export_draft(id: String, app: tauri::AppHandle, state: State<'_, AppState>) -> Result<Option<String>, String> {
+    export_package(prepare_draft_output(id, app, state)?)
 }
 
 #[tauri::command]
-pub fn import_skin(app: tauri::AppHandle) -> Result<Option<String>, String> {
+pub fn import_skin(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<Option<String>, String> {
     let Some(path) = rfd::FileDialog::new().add_filter("Texture Helper skin", &["phskin"]).pick_file()
         else { return Ok(None); };
     let mut bytes = Vec::new();
     fs::File::open(path).map_err(|error| error.to_string())?.take(MAX_SHARE_BYTES + 1)
         .read_to_end(&mut bytes).map_err(|error| error.to_string())?;
     let draft = import_package_at(&storage(&app)?, &bytes)?;
+    textures::import_draft_textures(&app, &*state.0.lock().map_err(|_| "Index lock failed")?, &draft)
+        .map_err(|error| format!("Skin \"{}\" was imported, but its textures could not all be added to the library: {error}", draft.name))?;
     Ok(Some(draft.name))
 }
 
@@ -464,7 +607,7 @@ fn uninstall_at(draft: &Draft, install: &Path) -> Result<usize, String> {
     } else { vec![draft.archived_files.clone()] };
     let mut ids = Vec::new();
     for files in groups {
-        if files_match(install, &files)? {
+        if if draft.archived_files.is_empty() { editable_files_match(install, &files)? } else { files_match(install, &files)? } {
             let file = files.iter().find(|file| file.root == "vmt").unwrap_or(&files[0]);
             ids.push(format!("{}:{}", file.root, file.relative));
         }
@@ -500,7 +643,100 @@ fn installed_draft(install: &Path, id: &str) -> Result<Draft, String> {
     }
     Ok(Draft { version: 1, id: None, name: skin.name, model_path: String::new(),
         slot_selections: BTreeMap::new(), active_part_path: String::new(), active_material_key: None,
-        textures: Vec::new(), ai_originals: Vec::new(), workshop_source: None, archived_files: files })
+        textures: Vec::new(), component_textures:Vec::new(), component_error:None, ai_originals: Vec::new(), workshop_source: None, archived_files: files })
+}
+
+fn installed_material(install: &Path, id: &str) -> Result<String, String> {
+    let skin = custom_skin_inventory(install).into_iter().find(|skin| skin.id == id)
+        .ok_or("Installed skin no longer exists")?;
+    if !skin.has_vtf { return Err("Installed texture is missing; this skin cannot be edited".into()); }
+    let path = skin.vmt_path.ok_or("This texture has no installed material, so its model cannot be identified")?;
+    let relative = Path::new(&path).strip_prefix(install.join("data").join("phcustomtextures"))
+        .map_err(|error| error.to_string())?.to_string_lossy().into_owned();
+    let path = format!("materials/{}", key(&relative));
+    if !is_skin_material_path(&path) { return Err("This is not a supported first-person skin material".into()); }
+    Ok(path)
+}
+
+fn matching_models(index: &ContentIndex, material: &str) -> Result<Vec<String>, String> {
+    let mut paths = Vec::new();
+    for model in index.models.iter().filter(|model| model.compatible) {
+        let source = find(index, &model.path).ok_or("Indexed model is missing; refresh models")?;
+        let mdl = model::mdl::read_mdl_bytes(&source.read()?)
+            .map_err(|error| format!("Could not inspect {}: {error}", model.path))?;
+        if mdl.body_parts.iter().any(|body| body.models.first().is_some_and(|body| body.meshes.iter().any(|mesh| {
+            mdl.texture_for_material(0, mesh.material).is_some_and(|texture| {
+                material_candidates(&texture.name, &mdl.cd_texture_paths).into_iter()
+                    .map(|path| key(&path)).find(|path| index.files.contains_key(path)).as_deref() == Some(material)
+            })
+        }))) { paths.push(model.path.clone()); }
+    }
+    paths.sort(); paths.dedup();
+    Ok(paths)
+}
+
+#[tauri::command]
+pub async fn installed_skin_models(id: String, state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let index = state.0.lock().map_err(|_| "Index lock failed")?;
+    let install = index.install_root.as_deref().ok_or("Choose your Garry's Mod folder first")?;
+    matching_models(&index, &installed_material(install, &id)?)
+}
+
+fn editable_installed_at(root: &Path, index: &ContentIndex, id: &str, model_path: &str) -> Result<Draft, String> {
+    let install = index.install_root.as_deref().ok_or("Choose your Garry's Mod folder first")?;
+    let selected_material = installed_material(install, id)?;
+    if !matching_models(index, &selected_material)?.iter().any(|path| path == model_path) {
+        return Err("Selected model does not use this installed material. Refresh and choose a matching model.".into());
+    }
+    let detail = build_model(index, model_path)?;
+    let inventory = custom_skin_inventory(install);
+    let mut textures = Vec::new();
+    for material in &detail.materials {
+        let (Some(vmt), Some(vtf)) = (&material.vmt_path, &material.vtf_path) else { continue; };
+        if !is_skin_material_path(vmt) || !is_skin_material_path(vtf) { continue; }
+        let Some(skin) = inventory.iter().find(|skin| skin.id == format!("vmt:{}", vmt.trim_start_matches("materials/")) && skin.has_vtf)
+            else { continue; };
+        let text = fs::read_to_string(skin.vmt_path.as_ref().ok_or("Installed material is missing")?)
+            .map_err(|error| error.to_string())?;
+        let bytes = fs::read(skin.vtf_path.as_ref().ok_or("Installed texture is missing")?)
+            .map_err(|error| error.to_string())?;
+        let image = vtf_decode::decode_highres(&bytes).map_err(|error| format!("Could not decode installed {vmt}: {error}"))?;
+        if Some(image.width()) != material.width || Some(image.height()) != material.height {
+            return Err(format!("Installed {vmt} has different dimensions from the original model texture"));
+        }
+        let mut png = Cursor::new(Vec::new());
+        image.write_to(&mut png, ImageFormat::Png).map_err(|error| error.to_string())?;
+        let texture = DraftTexture {key:vmt.clone(), part_path:model_path.into(), vmt_path:Some(vmt.clone()),
+            vtf_path:Some(vtf.clone()), vmt_text:Some(text), png:format!("data:image/png;base64,{}", STANDARD.encode(png.into_inner())),
+            strip_alpha:false};
+        if !editable_files_match(install, &expected_files(&texture)?)? {
+            return Err(format!("Installed {vmt} uses a non-standard texture mapping. Export a backup instead; no files were changed."));
+        }
+        if !textures.iter().any(|other: &DraftTexture| other.key == texture.key) { textures.push(texture); }
+    }
+    if !textures.iter().any(|texture| texture.key == selected_material) { return Err("Selected installed material could not be imported".into()); }
+    if root.is_dir() {
+        for entry in fs::read_dir(root).map_err(|error| error.to_string())? {
+            let path = entry.map_err(|error| error.to_string())?.path();
+            if path.extension().is_some_and(|extension| extension == "json") {
+                let existing = read_at(root, path.file_stem().and_then(|value| value.to_str()).ok_or("Invalid draft filename")?)?;
+                if existing.archived_files.is_empty() && existing.model_path == model_path && existing.textures.len() == textures.len()
+                    && textures.iter().all(|texture| existing.textures.iter().any(|other|
+                    other.key == texture.key && other.png == texture.png && other.vmt_text == texture.vmt_text)) {
+                    return Ok(existing);
+                }
+            }
+        }
+    }
+    save_at(root, Draft {version:1, id:None, name:format!("{} - installed", model_path.rsplit('/').next().unwrap_or(model_path).trim_end_matches(".mdl")),
+        model_path:model_path.into(), slot_selections:BTreeMap::new(), active_part_path:model_path.into(),
+        active_material_key:Some(selected_material), textures, component_textures:Vec::new(), component_error:None, ai_originals:Vec::new(), workshop_source:None, archived_files:Vec::new()})
+}
+
+#[tauri::command]
+pub async fn edit_installed_skin(id: String, model_path: String, app: tauri::AppHandle, state: State<'_, AppState>) -> Result<Draft, String> {
+    let index = state.0.lock().map_err(|_| "Index lock failed")?;
+    editable_installed_at(&storage(&app)?, &index, &id, &model_path)
 }
 
 #[tauri::command]
@@ -581,7 +817,8 @@ pub fn install_draft(id: String, alpha_choices: Option<BTreeMap<String, bool>>, 
             }
         }
     }
-    restore_at(&draft, &install)?;
+    let output = shared_texture::flatten_draft(&*state.0.lock().map_err(|_| "Index lock failed")?, &draft)?;
+    restore_at(&output, &install)?;
     save_at(&root, draft).map_err(|error| format!("Skin installed, but its alpha settings could not be saved: {error}"))?;
     Ok(())
 }
@@ -589,6 +826,165 @@ pub fn install_draft(id: String, alpha_choices: Option<BTreeMap<String, bool>>, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn identical_component_images_are_stored_once_and_restored_for_each_part() {
+        let mut draft = sample();
+        let png = draft.textures[0].png.clone();
+        draft.component_textures = vec![
+            shared_texture::ComponentTexture {part_path:"models/first.mdl".into(), material_index:0, png:png.clone(), source_id:None},
+            shared_texture::ComponentTexture {part_path:"models/second.mdl".into(), material_index:0, png, source_id:None},
+        ];
+        let original = draft.component_textures.clone();
+        compact_component_sources(&mut draft);
+        assert!(!draft.component_textures[0].png.is_empty());
+        assert!(draft.component_textures[1].png.is_empty());
+        assert_eq!(draft.component_textures[0].source_id, draft.component_textures[1].source_id);
+        expand_component_sources(&mut draft).unwrap();
+        assert_eq!(draft.component_textures, original);
+    }
+
+    #[test]
+    fn component_sources_persist_while_all_deliverables_use_one_flattened_atlas() {
+        let Ok(content) = std::env::var("PERP_TEST_CONTENT") else { return; };
+        let mut index = ContentIndex::default();
+        collect_loose(Path::new(&content), &mut index.files);
+        let gun_path = "models/perpheads/weapons/c_ak74u.mdl";
+        let stock_path = "models/perpheads/weapons/attachments/stock_ak74.mdl";
+        let gun = build_model(&index, gun_path).unwrap();
+        let stock = build_model(&index, stock_path).unwrap();
+        let (gun_index, material) = gun.materials.iter().enumerate()
+            .find(|(_, material)| material.vtf_path.as_ref().is_some_and(|path| path.ends_with("/gripsmag.vtf"))).unwrap();
+        let stock_index = stock.materials.iter().position(|other| other.vtf_path == material.vtf_path).unwrap();
+        let colour = |rgba| {
+            let image = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+                material.width.unwrap(), material.height.unwrap(), image::Rgba(rgba)));
+            let mut bytes = Cursor::new(Vec::new());
+            image.write_to(&mut bytes, ImageFormat::Png).unwrap();
+            format!("data:image/png;base64,{}", STANDARD.encode(bytes.into_inner()))
+        };
+        let green = colour([8, 230, 80, 255]);
+        let pink = colour([230, 20, 170, 255]);
+        let mut draft = sample();
+        draft.model_path = gun_path.into();
+        draft.slot_selections = BTreeMap::from([("SLOT_STOCK".into(), Some("stock_ak74".into()))]);
+        draft.textures = vec![DraftTexture {key:material.vmt_path.clone().unwrap(), part_path:gun_path.into(),
+            vmt_path:material.vmt_path.clone(), vtf_path:material.vtf_path.clone(), vmt_text:material.vmt_text.clone(),
+            png:material.image.clone().unwrap(), strip_alpha:false}];
+        draft.component_textures = vec![
+            shared_texture::ComponentTexture {part_path:gun_path.into(), material_index:gun_index, png:green.clone(), source_id:None},
+            shared_texture::ComponentTexture {part_path:stock_path.into(), material_index:stock_index, png:pink.clone(), source_id:None},
+        ];
+        let root = tempfile::tempdir().unwrap();
+        let saved = save_at(root.path(), draft).unwrap();
+        let reloaded = read_at(root.path(), saved.id.as_ref().unwrap()).unwrap();
+        assert_eq!(reloaded.component_textures[0].png, green);
+        assert_eq!(reloaded.component_textures[1].png, pink);
+        let output = shared_texture::flatten_draft(&index, &reloaded).unwrap();
+        assert!(output.component_textures.is_empty());
+        assert!(output.component_error.is_none());
+        assert_eq!(output.textures.len(), 1);
+        assert_eq!(output.textures[0].vmt_text, material.vmt_text);
+        let pixels = image::load_from_memory(&png_bytes(&output.textures[0].png).unwrap()).unwrap().to_rgba8();
+        assert!(pixels.pixels().any(|pixel| pixel.0 == [8, 230, 80, 255]));
+        assert!(pixels.pixels().any(|pixel| pixel.0 == [230, 20, 170, 255]));
+        let exported = package_bytes(output.clone()).unwrap();
+        let package: serde_json::Value = serde_json::from_slice(&exported).unwrap();
+        assert!(package["draft"].get("componentTextures").is_none());
+        let workshop_shape = serde_json::to_value(&output).unwrap();
+        assert!(workshop_shape.get("componentTextures").is_none());
+        let install = tempfile::tempdir().unwrap();
+        fs::create_dir(install.path().join("addons")).unwrap();
+        fs::create_dir(install.path().join("data")).unwrap();
+        restore_at(&output, install.path()).unwrap();
+        let file = expected_files(&output.textures[0]).unwrap().into_iter().find(|file| file.root == "vtf").unwrap();
+        let installed = vtf_decode::decode_highres(&fs::read(file_target(install.path(), &file).unwrap()).unwrap()).unwrap();
+        assert_eq!(installed.to_rgba8(), pixels);
+        assert_eq!(read_at(root.path(), saved.id.as_ref().unwrap()).unwrap().component_textures.len(), 2);
+
+        let aliases: Vec<_> = index.files.iter().filter(|(path, _)| path.starts_with("models/perpheads/weapons/c_ak74u."))
+            .map(|(path, source)| (path.replacen("c_ak74u.", "c_component_overlap.", 1), source.clone())).collect();
+        index.files.extend(aliases);
+        let mut conflicting = reloaded.clone();
+        conflicting.component_textures[1].part_path = "models/perpheads/weapons/c_component_overlap.mdl".into();
+        conflicting.component_textures[1].material_index = gun_index;
+        let error = shared_texture::flatten_draft(&index, &conflicting).err().unwrap();
+        assert!(error.contains("conflicting component colours or alpha"), "{error}");
+        let mut duplicate = reloaded.clone();
+        duplicate.component_textures.push(duplicate.component_textures[0].clone());
+        assert!(validate(&duplicate).is_err());
+        assert!(shared_texture::flatten_draft(&index, &duplicate).is_err());
+    }
+
+    #[test]
+    fn installed_import_matches_original_models_without_changing_game_files() {
+        let Ok(content) = std::env::var("PERP_TEST_CONTENT") else { return; };
+        let game = tempfile::tempdir().unwrap();
+        let saved = tempfile::tempdir().unwrap();
+        fs::create_dir(game.path().join("addons")).unwrap();
+        fs::create_dir(game.path().join("data")).unwrap();
+        let mut index = ContentIndex::default();
+        collect_loose(Path::new(&content), &mut index.files);
+        let path = "models/perpheads/weapons/c_katana.mdl";
+        index.models = [path, "models/perpheads/weapons/c_ak101.mdl"].into_iter().map(|path| ModelSummary {
+            path:path.into(), origin:"fixture".into(), compatible:true
+        }).collect();
+        index.install_root = Some(game.path().to_path_buf());
+        let original = build_model(&index, path).unwrap();
+        let material = original.materials.iter().find(|material| material.vmt_path.as_deref()
+            == Some("materials/models/weapons/v_models/katana/metal.vmt")).unwrap();
+        let vmt = material.vmt_path.as_ref().unwrap();
+        let vtf = material.vtf_path.as_ref().unwrap();
+        let edited = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            material.width.unwrap(), material.height.unwrap(), image::Rgba([210, 35, 40, 255])));
+        let encoded = encode_vtf(&edited).unwrap();
+        write_custom_skin(game.path(), vtf, vmt, material.vmt_text.as_ref().unwrap(), &encoded).unwrap();
+        let inventory = custom_skin_inventory(game.path());
+        let skin = &inventory[0];
+        let original_vmt = fs::read(skin.vmt_path.as_ref().unwrap()).unwrap();
+        let original_vtf = fs::read(skin.vtf_path.as_ref().unwrap()).unwrap();
+        assert_eq!(matching_models(&index, vmt).unwrap(), [path]);
+        assert!(editable_installed_at(saved.path(), &index, &skin.id, "models/perpheads/weapons/c_ak101.mdl").is_err());
+        let draft = editable_installed_at(saved.path(), &index, &skin.id, path).unwrap();
+        assert!(draft.archived_files.is_empty());
+        assert!(draft.slot_selections.is_empty());
+        assert_eq!(draft.textures.len(), 1);
+        let decoded = image::load_from_memory(&png_bytes(&draft.textures[0].png).unwrap()).unwrap();
+        assert_eq!(decoded.to_rgba8(), edited.to_rgba8());
+        let status = summary(&draft, Some(game.path())).unwrap();
+        assert_eq!(status.installed_count, 1);
+        assert_eq!(status.installed_ids, [skin.id.clone()]);
+        let again = editable_installed_at(saved.path(), &index, &skin.id, path).unwrap();
+        assert_eq!(draft.id, again.id);
+        assert_eq!(fs::read(skin.vmt_path.as_ref().unwrap()).unwrap(), original_vmt);
+        assert_eq!(fs::read(skin.vtf_path.as_ref().unwrap()).unwrap(), original_vtf);
+        assert_eq!(build_model(&index, path).unwrap().materials.iter().find(|entry| entry.vmt_path.as_ref() == Some(vmt)).unwrap().image,
+            material.image, "Fresh model must still use the original texture");
+        let package = package_bytes(draft.clone()).unwrap();
+        let imported_root = tempfile::tempdir().unwrap();
+        let imported = import_package_at(imported_root.path(), &package).unwrap();
+        assert_eq!(imported.textures[0].png, draft.textures[0].png);
+        fs::write(skin.vtf_path.as_ref().unwrap(), b"broken VTF").unwrap();
+        assert!(editable_installed_at(saved.path(), &index, &skin.id, path).is_err());
+        fs::write(skin.vtf_path.as_ref().unwrap(), original_vtf).unwrap();
+        uninstall_at(&draft, game.path()).unwrap();
+        assert_eq!(summary(&draft, Some(game.path())).unwrap().installed_count, 0);
+    }
+
+    #[test]
+    fn installed_matching_preserves_shader_changes_and_compares_vtf_pixels() {
+        let actual = b"VertexLitGeneric\n{\n$basetexture \"models\\weapons\\v_models\\test_custom\"\n}";
+        let expected = b"VertexLitGeneric\n{\n$basetexture \"models/weapons/v_models/test_custom\"\n}";
+        assert!(editable_file_matches(actual, expected, "vmt"));
+        assert!(!editable_file_matches(actual, b"UnlitGeneric\n{\n$basetexture \"models/weapons/v_models/test_custom\"\n}", "vmt"));
+        let image = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(4, 4, image::Rgba([220, 30, 50, 255])));
+        let bytes = encode_vtf(&image).unwrap();
+        let mut changed_header = bytes.clone();
+        changed_header[20] ^= 1;
+        assert!(editable_file_matches(&changed_header, &bytes, "vtf"));
+        let different = encode_vtf(&DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(4, 4, image::Rgba([0, 0, 0, 255])))).unwrap();
+        assert!(!editable_file_matches(&bytes, &different, "vtf"));
+    }
 
     fn sample() -> Draft {
         let mut image = image::RgbaImage::new(4, 4);
@@ -603,7 +999,7 @@ mod tests {
                 vtf_path: Some(format!("{SKIN_MATERIAL_PREFIX}ak101/frame.vtf")),
                 vmt_text: Some("VertexLitGeneric\n{\n$basetexture \"original\"\n}".into()),
                 png: format!("data:image/png;base64,{}", STANDARD.encode(png.into_inner())), strip_alpha: false }],
-            ai_originals: Vec::new(), workshop_source: None, archived_files: Vec::new() }
+            component_textures:Vec::new(), component_error:None, ai_originals: Vec::new(), workshop_source: None, archived_files: Vec::new() }
     }
 
     #[test]

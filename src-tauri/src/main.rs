@@ -5,6 +5,8 @@ mod model;
 mod vtf_decode;
 mod updates;
 mod drafts;
+mod textures;
+mod shared_texture;
 mod workshop;
 
 use base64::{Engine, engine::general_purpose::STANDARD};
@@ -69,7 +71,7 @@ impl Source {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct ContentIndex {
     files: HashMap<String, Source>,
     install_root: Option<PathBuf>,
@@ -457,12 +459,13 @@ fn build_index(root: &str) -> Result<(ContentIndex, ScanResult), String> {
                     continue;
                 }
                 let loose_root = if search_root == &addons {
+                    if entry.file_name().to_string_lossy().eq_ignore_ascii_case("skins") { continue; }
                     entry.path()
                 } else {
                     entry.path().join("content")
                 };
                 if loose_root.is_dir() {
-                    collect_loose(&loose_root, &mut files);
+                    collect_original_loose(&loose_root, &loose_root, &mut files);
                 }
             }
         }
@@ -471,7 +474,7 @@ fn build_index(root: &str) -> Result<(ContentIndex, ScanResult), String> {
         for subdir in ["materials", "models"] {
             let loose_root = content.join(subdir);
             if loose_root.is_dir() {
-                collect_loose_under(&loose_root, &content, &mut files);
+                collect_original_loose(&loose_root, &content, &mut files);
             }
         }
         if let Some(game_root) = content.parent() {
@@ -534,6 +537,15 @@ fn build_index(root: &str) -> Result<(ContentIndex, ScanResult), String> {
 }
 
 const SKIN_MATERIAL_PREFIX: &str = "materials/models/weapons/v_models/";
+fn collect_original_loose(base: &Path, relative_to: &Path, files: &mut HashMap<String, Source>) {
+    let mut loose = HashMap::new();
+    collect_loose_under(base, relative_to, &mut loose);
+    for (path, source) in loose {
+        // Installed loose skins must not replace the original first-person material source.
+        if is_skin_material_path(&path) && files.contains_key(&path) { continue; }
+        files.insert(path, source);
+    }
+}
 fn is_skin_material_path(path: &str) -> bool {
     (path.starts_with(SKIN_MATERIAL_PREFIX)
         || path.starts_with("materials/models/jarheads/weapons/"))
@@ -1238,7 +1250,9 @@ fn import_image(data_base64: String) -> Result<String, String> {
     let bytes = STANDARD
         .decode(encoded)
         .map_err(|error| error.to_string())?;
-    let image = if bytes.starts_with(b"DDS ") {
+    let image = if bytes.starts_with(b"VTF\0") {
+        textures::decode_texture(&bytes)?
+    } else if bytes.starts_with(b"DDS ") {
         decode_dds(&bytes)?
     } else {
         image::load_from_memory_with_format(&bytes, ImageFormat::Png)
@@ -1602,15 +1616,24 @@ fn main() {
             save_dds,
             export_textures,
             drafts::save_draft,
+            drafts::prepare_draft_output,
             drafts::list_drafts,
             drafts::load_draft,
             drafts::delete_draft,
             drafts::uninstall_draft,
             drafts::archive_custom_skin,
+            drafts::installed_skin_models,
+            drafts::edit_installed_skin,
             drafts::export_draft,
             drafts::export_custom_skin,
             drafts::import_skin,
-            drafts::install_draft
+            drafts::install_draft,
+            textures::save_texture_variant,
+            textures::rename_texture_variant,
+            textures::list_texture_variants,
+            textures::load_texture_variant,
+            textures::delete_texture_variant,
+            shared_texture::combine_shared_texture
         ])
         .run(context)
         .expect("failed to run texture helper");
@@ -2219,6 +2242,28 @@ mod tests {
                 .is_empty()
         );
         assert!(!vtf_path.exists());
+    }
+
+    #[test]
+    fn loose_installed_skins_do_not_override_original_material_sources() {
+        let original = tempfile::tempdir().unwrap();
+        let loose = tempfile::tempdir().unwrap();
+        let path = "materials/models/weapons/v_models/test/receiver.vtf";
+        let source = original.path().join(path);
+        let override_path = loose.path().join(path);
+        fs::create_dir_all(source.parent().unwrap()).unwrap();
+        fs::create_dir_all(override_path.parent().unwrap()).unwrap();
+        fs::write(&source, b"original").unwrap();
+        fs::write(&override_path, b"installed gold").unwrap();
+        let mut files = HashMap::from([(path.into(), Source::Loose(source))]);
+        collect_original_loose(loose.path(), loose.path(), &mut files);
+        assert_eq!(files[path].read().unwrap(), b"original");
+        let game = tempfile::tempdir().unwrap();
+        let installed = game.path().join("addons").join("skins").join(path);
+        fs::create_dir_all(installed.parent().unwrap()).unwrap();
+        fs::write(installed, b"installed gold").unwrap();
+        let (index, _) = build_index(game.path().to_str().unwrap()).unwrap();
+        assert!(!index.files.contains_key(path), "Installed skins must not enter the original-content index");
     }
 
     #[test]

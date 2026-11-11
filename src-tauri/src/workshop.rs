@@ -247,13 +247,13 @@ pub async fn workshop_signout(state: State<'_, WorkshopState>) -> Result<(), Str
 }
 
 #[tauri::command]
-pub async fn workshop_stage(id: String, preview: String, app: tauri::AppHandle, state: State<'_, WorkshopState>) -> Result<(), String> {
+pub async fn workshop_stage(id: String, preview: String, app: tauri::AppHandle, state: State<'_, WorkshopState>, content: State<'_, AppState>) -> Result<(), String> {
     let auth = token(&state)?;
     api(reqwest::Method::GET, "/me", Some(&auth), None).await?;
     if preview.len() > MAX_PREVIEW * 4 / 3 + 32 { return Err("Workshop preview is too large".into()); }
     let bytes = STANDARD.decode(preview.strip_prefix("data:image/png;base64,").unwrap_or(&preview)).map_err(|_| "Invalid preview PNG")?;
     validate_preview(&bytes)?;
-    let draft = drafts::read_at(&drafts::storage(&app)?, &id)?;
+    let draft = drafts::prepare_draft_output(id.clone(), app.clone(), content)?;
     if draft.textures.is_empty() || draft.textures.len() > 12 { return Err("Choose an editable draft with 1–12 textures".into()); }
     let mut draft = draft;
     draft.ai_originals.clear();
@@ -348,9 +348,11 @@ pub async fn workshop_preview(id: String, hash: String) -> Result<String, String
 }
 
 #[tauri::command]
-pub async fn workshop_download(id: String, hash: String, app: tauri::AppHandle) -> Result<String, String> {
+pub async fn workshop_download(id: String, hash: String, app: tauri::AppHandle, state: State<'_, AppState>) -> Result<String, String> {
     let bytes = asset(&id, "skin.phskin", &hash, MAX_PACKAGE).await?;
     let draft = drafts::import_package_at(&drafts::storage(&app)?, &bytes)?;
+    textures::import_draft_textures(&app, &*state.0.lock().map_err(|_| "Index lock failed")?, &draft)
+        .map_err(|error| format!("Skin \"{}\" was downloaded, but its textures could not all be added to the library: {error}", draft.name))?;
     Ok(draft.name)
 }
 

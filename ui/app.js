@@ -38,6 +38,9 @@ const group = new THREE.Group();
 scene.add(group);
 let model = null, models = [], customSkins = [], selectedPath = null, materialIndex = 0, importedPng = null, importedImage = null;
 const assembly = new Map(), edits = new Map();
+const componentEdits = new Map();
+let componentMode = false, componentSelectionSerial = 0;
+let textureSelected = false, overviewKey = '';
 const hiddenUvLayers = new Set();
 const uvColors = ['#ff765c', '#62c4ff', '#b799ff', '#79d99a', '#ffd166', '#ff8fce'];
 const partMounts = new Map();
@@ -51,6 +54,7 @@ let activePartPath = null, selectionSerial = 0, loadoutSerial = 0, resolvedLoado
 let libraryView = 'models', category = 'All', compatibleOnly = true, contentScanned = false, installAvailable = false;
 let scanSummary = 'Choose Garry\'s Mod to index installed addons and Workshop content.';
 let drafts = [], draftSession = null, draftSaveQueue = Promise.resolve();
+let textureVariants = [], textureWarnings = [], variantBusy = false;
 let distance = 10, fitDistance = 10, center = new THREE.Vector3();
 const slotOrder = Object.keys(attachmentData.slots);
 const attachmentCategories = {
@@ -176,9 +180,13 @@ async function draftThumbnailModel(draft) {
   for (const {detail, matrix} of parts) {
     const offset = materials.length;
     materials.push(...detail.materials.map(material => {
+      const materialIndex = detail.materials.indexOf(material);
+      const component = draft.componentTextures?.find(texture => texture.partPath === detail.path && texture.materialIndex === materialIndex);
+      if (component) return {...material, image:component.png};
       const edit = draft.textures.find(texture => texture.partPath === detail.path && texture.vmtPath === material.vmtPath)
         || draft.textures.find(texture => texture.vtfPath && texture.vtfPath === material.vtfPath);
-      return edit ? {...material, image:edit.png} : material;
+      return edit ? {...material, image:edit.png,
+        vmtText:edit.vmtPath === material.vmtPath ? edit.vmtText ?? material.vmtText : material.vmtText} : material;
     }));
     for (const mesh of detail.meshes) {
       const positions = new THREE.Float32BufferAttribute(mesh.positions, 3);
@@ -190,7 +198,7 @@ async function draftThumbnailModel(draft) {
   return {materials, meshes};
 }
 
-async function makeThumbnail(detail) {
+async function makeThumbnail(detail, {identifyComponent = false, size: imageSize = 80} = {}) {
   if (!thumbnailRenderer) {
     thumbnailRenderer = new THREE.WebGLRenderer({canvas: thumbnailCanvas, antialias: true, preserveDrawingBuffer: true});
     thumbnailRenderer.setSize(80, 80, false);
@@ -207,9 +215,11 @@ async function makeThumbnail(detail) {
     geometry.setAttribute('normal', new THREE.Float32BufferAttribute(mesh.normals, 3));
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(mesh.uvs, 2));
     geometry.computeBoundingBox(); bounds.union(geometry.boundingBox);
-    const materialInfo = detail.materials[mesh.materialIndex];
-    const material = createSourceMaterial(materialInfo, 0xb8c2cb);
-    if (materialInfo.image) {
+    const materialInfo = identifyComponent ? null : detail.materials[mesh.materialIndex];
+    const material = identifyComponent
+      ? new THREE.MeshStandardMaterial({color:mesh.componentColor || '#718090', roughness:.8, side:THREE.DoubleSide})
+      : createSourceMaterial(materialInfo, 0xb8c2cb);
+    if (!identifyComponent && materialInfo.image) {
       try {
         const texture = configureSourceTexture(await new THREE.TextureLoader().loadAsync(materialInfo.image));
         material.color.setHex(0xffffff); material.map = texture;
@@ -219,10 +229,22 @@ async function makeThumbnail(detail) {
   }
   const center = bounds.getCenter(new THREE.Vector3());
   for (const object of pivot.children) object.position.copy(center).multiplyScalar(-1);
-  pivot.rotation.set(.25, .6, 0);
+  pivot.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+    ...viewBases.front.map(axis => new THREE.Vector3(...axis))));
+  pivot.quaternion.premultiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(.1, .16, 0, 'YXZ')));
   const size = Math.max(bounds.getSize(new THREE.Vector3()).length(), .01);
-  const thumbCamera = new THREE.PerspectiveCamera(45, 1, .001, size * 100);
-  thumbCamera.position.set(0, 0, size * 1.8); thumbCamera.lookAt(0, 0, 0);
+  const half = new THREE.Vector3(), corner = new THREE.Vector3();
+  for (const x of [bounds.min.x, bounds.max.x]) for (const y of [bounds.min.y, bounds.max.y]) {
+    for (const z of [bounds.min.z, bounds.max.z]) {
+      corner.set(x, y, z).sub(center).applyQuaternion(pivot.quaternion);
+      half.x = Math.max(half.x, Math.abs(corner.x));
+      half.y = Math.max(half.y, Math.abs(corner.y));
+    }
+  }
+  const extent = Math.max(half.x, half.y, size * .025) * 1.14;
+  const thumbCamera = new THREE.OrthographicCamera(-extent, extent, extent, -extent, .001, size * 100);
+  thumbCamera.position.set(0, 0, size * 3); thumbCamera.lookAt(0, 0, 0);
+  thumbnailRenderer.setSize(imageSize, imageSize, false);
   thumbnailRenderer.render(thumbScene, thumbCamera);
   const dataUrl = thumbnailCanvas.toDataURL('image/png');
   for (const object of pivot.children) { object.geometry.dispose(); object.material.map?.dispose(); object.material.dispose(); }
@@ -243,15 +265,20 @@ function resize() {
   renderer.setSize(rect.width, rect.height, false);
   camera.aspect = rect.width / rect.height;
   camera.updateProjectionMatrix();
+  requestRender();
 }
 new ResizeObserver(resize).observe(canvas);
-function frame() {
-  requestAnimationFrame(frame);
-  camera.position.set(0, 0, distance);
-  camera.lookAt(0, 0, 0);
-  renderer.render(scene, camera);
+let renderRequest = 0;
+function requestRender() {
+  if (renderRequest) return;
+  renderRequest = requestAnimationFrame(() => {
+    renderRequest = 0;
+    camera.position.set(0, 0, distance);
+    camera.lookAt(0, 0, 0);
+    renderer.render(scene, camera);
+  });
 }
-frame();
+requestRender();
 const viewBases = {
   front: [[0, 0, 1], [1, 0, 0], [0, 1, 0]],
   side: [[-1, 0, 0], [0, 0, 1], [0, 1, 0]],
@@ -265,6 +292,7 @@ function setView(view) {
     group.quaternion.premultiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(.18, .5, 0, 'YXZ')));
     distance = fitDistance;
   }
+  requestRender();
 }
 document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => setView(button.dataset.view)));
 function trackballPoint(event) {
@@ -277,13 +305,16 @@ function trackballPoint(event) {
 let drag = null;
 let selectionClick = null;
 const partRaycaster = new THREE.Raycaster();
-function selectTextureLayer(layer) {
+function selectTextureLayer(layer, component = false) {
+  textureSelected = true;
+  componentMode = component;
+  componentSelectionSerial++;
   activePartPath = layer.part.path; materialIndex = layer.index;
-  highlightLayers(activeTextureLayers());
+  highlightLayers(editingTextureLayers());
   renderRelated(); renderMaterials();
   saveDraft().catch(error => toast(`Draft was not saved: ${error}`, true));
 }
-function pickTexture(event) {
+function pickTexture(event, component = false) {
   const rect = canvas.getBoundingClientRect();
   camera.position.set(0, 0, distance); camera.lookAt(0, 0, 0);
   camera.updateMatrixWorld(); group.updateMatrixWorld(true);
@@ -291,13 +322,14 @@ function pickTexture(event) {
     (event.clientX - rect.left) / rect.width * 2 - 1,
     1 - (event.clientY - rect.top) / rect.height * 2), camera);
   const hit = partRaycaster.intersectObjects(group.children, false)[0];
-  if (!hit) { highlightedMaterial = null; updateMaterialHighlight(); return; }
+  if (!hit) { showComponentOverview(); return; }
   const part = assembly.get(hit.object.userData.partPath);
   const index = hit.object.userData.materialIndex;
   if (!part?.materials[index]) { toast('The selected mesh has no material to inspect.', true); return; }
-  selectTextureLayer({part, material: part.materials[index], index});
+  selectTextureLayer({part, material: part.materials[index], index}, component);
 }
 canvas.addEventListener('contextmenu', event => event.preventDefault());
+canvas.addEventListener('dblclick', event => { if (event.button === 0) pickTexture(event, true); });
 canvas.addEventListener('pointerdown', event => {
   if (!model || (event.button !== 0 && event.button !== 2)) return;
   if (drag || selectionClick) return;
@@ -333,8 +365,13 @@ canvas.addEventListener('pointermove', event => {
     drag.point = point;
   }
   drag.x = event.clientX;
+  requestRender();
 });
-canvas.addEventListener('wheel', event => { event.preventDefault(); distance = Math.max(.05, distance * (event.deltaY > 0 ? 1.12 : .89)); }, {passive: false});
+canvas.addEventListener('wheel', event => {
+  event.preventDefault();
+  distance = Math.max(.05, distance * (event.deltaY > 0 ? 1.12 : .89));
+  requestRender();
+}, {passive: false});
 
 function clearGroup() {
   for (const object of [...group.children]) {
@@ -354,14 +391,19 @@ function updateMaterialHighlight() {
     overlay.renderOrder = 1;
     object.add(overlay);
   }
+  requestRender();
 }
 
-function skinKey(material) { return material.vmtPath || material.vtfPath; }
+function skinKey(material) { return material?.vmtPath || material?.vtfPath; }
 function textureEdit(material) {
-  return edits.get(skinKey(material)) || (material.vtfPath
+  return edits.get(skinKey(material)) || (material?.vtfPath
     ? [...edits.values()].find(edit => edit.vtfPath?.toLowerCase() === material.vtfPath.toLowerCase()) : null);
 }
-function currentEdit() { return textureEdit(activeMaterial()); }
+function componentEdit(part, index) { return componentEdits.get(`${part.path}:${index}`); }
+function currentEdit() { return (componentMode && activePart() ? componentEdit(activePart(), materialIndex) : null) || textureEdit(activeMaterial()); }
+function editingTextureLayers() {
+  return componentMode ? activeTextureLayers().filter(layer => layer.part.path === activePartPath && layer.index === materialIndex) : activeTextureLayers();
+}
 function textureKey(material) { return material.vtfPath?.toLowerCase() || skinKey(material); }
 function textureGroups() {
   const groups = new Map();
@@ -409,6 +451,7 @@ function updateInstallAll() {
 }
 function renderAssembly() {
   clearGroup();
+  requestRender();
   const bounds = new THREE.Box3();
   for (const detail of assembly.values()) for (const mesh of detail.meshes) {
     const geometry = new THREE.BufferGeometry();
@@ -417,15 +460,17 @@ function renderAssembly() {
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(mesh.uvs, 2));
     geometry.computeBoundingBox();
     const info = detail.materials[mesh.materialIndex];
-    const object = new THREE.Mesh(geometry, makeMaterial(info));
+    const ownEdit = edits.get(skinKey(info));
+    const object = new THREE.Mesh(geometry, makeMaterial({...info, vmtText:ownEdit?.vmtText ?? info.vmtText}));
     object.userData.materialIndex = mesh.materialIndex;
     object.userData.partPath = detail.path;
     object.userData.skinKey = skinKey(info);
     const mount = partMounts.get(detail.path);
     if (mount) { geometry.applyMatrix4(mount.matrix); geometry.computeBoundingBox(); }
     bounds.union(geometry.boundingBox);
-    const edit = textureEdit(info);
-    if (edit) { object.material.map?.dispose(); object.material.map = configureSourceTexture(new THREE.TextureLoader().load(edit.png)); object.material.needsUpdate = true; }
+    const edit = componentEdit(detail, mesh.materialIndex) || textureEdit(info);
+    if (edit) { object.material.map?.dispose(); object.material.map = configureSourceTexture(new THREE.TextureLoader().load(edit.png, requestRender, undefined,
+      error => toast(`Could not load the edited model texture: ${error}`, true))); object.material.needsUpdate = true; }
     group.add(object);
   }
   if (bounds.isEmpty()) return;
@@ -442,7 +487,8 @@ function renderAssembly() {
 function makeMaterial(info) {
   const material = createSourceMaterial(info);
   if (info.image) {
-    const texture = configureSourceTexture(new THREE.TextureLoader().load(info.image));
+    const texture = configureSourceTexture(new THREE.TextureLoader().load(info.image, requestRender, undefined,
+      error => toast(`Could not load the model texture: ${error}`, true)));
     material.map = texture;
     material.needsUpdate = true;
   } else material.color.setHex(0x9eaab7);
@@ -452,7 +498,7 @@ function makeMaterial(info) {
 async function displayModel(detail, serial, selections = []) {
   highlightedMaterial = null;
   hiddenUvLayers.clear();
-  assembly.clear(); edits.clear(); partMounts.clear(); slotSelections.clear(); partCache.clear(); resolvedLoadout = new Map(); assembly.set(detail.path, detail);
+  assembly.clear(); edits.clear(); componentEdits.clear(); componentMode = false; textureSelected = false; overviewKey = ''; componentSelectionSerial++; partMounts.clear(); slotSelections.clear(); partCache.clear(); resolvedLoadout = new Map(); assembly.set(detail.path, detail);
   for (const [slot, name] of selections) slotSelections.set(slot, name);
   draftSession = {id: null, name: `${weaponData(detail)?.name || attachmentName(detail)} draft`, status: ''};
   model = detail; activePartPath = detail.path; importedPng = null; importedImage = null; materialIndex = 0;
@@ -644,12 +690,16 @@ function attachmentName(item) { return item.path.split('/').pop().replace(/\.mdl
 function renderList() {
   renderDraftActions();
   $('import-skin').classList.toggle('hidden', libraryView !== 'skins');
-  $('library-title').textContent = libraryView === 'models' ? 'Models' : 'Custom skins';
-  $('search').placeholder = libraryView === 'models' ? 'Search model paths' : 'Search custom skins';
+  $('library-title').textContent = libraryView === 'models' ? 'Models' : libraryView === 'textures' ? 'Textures' : 'Custom skins';
+  $('search').placeholder = libraryView === 'models' ? 'Search model paths' : libraryView === 'textures' ? 'Search textures / materials' : 'Search custom skins';
+  $('texture-count').textContent = textureVariants.length.toLocaleString();
+  $('library-import-texture').classList.toggle('hidden', libraryView !== 'textures');
+  $('texture-library-warnings').classList.toggle('hidden', libraryView !== 'textures' || !textureWarnings.length);
   $('skin-count').textContent = (drafts.length + customSkins.filter(skin => !drafts.some(draft => draft.installedIds?.includes(skin.id))).length).toLocaleString();
   $('category-filters').classList.toggle('hidden', libraryView !== 'models');
   $('compatibility-filter').classList.toggle('hidden', libraryView !== 'models');
   if (libraryView === 'skins') { renderCustomSkins(); return; }
+  if (libraryView === 'textures') { renderTextureLibrary(); return; }
   renderCategories();
   const query = $('search').value.trim().toLowerCase();
   const found = visibleModels().filter(item => (category === 'All' || modelCategory(item.path) === category) && (!query || item.path.includes(query)));
@@ -671,6 +721,318 @@ function renderList() {
   }
   $('scan-info').textContent = found.length > 250 ? `Showing 250 of ${found.length.toLocaleString()} results. Search to narrow the list.` : `${scanSummary} · ${compatibleOnly ? 'Guide compatible' : 'All models'}`;
 }
+
+function variantMatches(variant, material = activeMaterial()) {
+  return !!material && variant.vmtPath === material.vmtPath && variant.vtfPath === material.vtfPath
+    && variant.width === material.width && variant.height === material.height;
+}
+
+function renderTextureVariants() {
+  const material = activeMaterial();
+  $('texture-variants').classList.toggle('hidden', !material?.vmtPath || !material?.vtfPath);
+  const select = $('variant-select'); select.replaceChildren();
+  const original = new Option('Original / default', 'original'); select.append(original);
+  const edit = currentEdit(), matches = textureVariants.filter(variant => variantMatches(variant));
+  for (const variant of matches) select.append(new Option(variantLabel(variant), variant.id));
+  if (edit?.png && edit.png !== material?.image) {
+    if (matches.some(variant => variant.id === edit.variantId)) select.value = edit.variantId;
+    else { select.append(new Option('Current draft edit', 'current')); select.value = 'current'; }
+  } else select.value = 'original';
+  select.disabled = variantBusy;
+  $('save-texture-variant').disabled = variantBusy || !(edit?.png || material?.image);
+  renderComponentScope();
+}
+
+function sharedComponentName(part) {
+  const weapon = weaponData(part);
+  if (weapon) return `Weapon body — ${weapon.name}`;
+  const attachment = Object.values(attachmentData.attachments).find(info => info.model === part.path);
+  if (attachment) return `${attachmentData.slots[attachment.slot] || 'Attachment'} — ${attachment.label}`;
+  return attachmentName(part);
+}
+
+async function sharedComponentThumbnail(layers) {
+  const selected = new Map(layers.map(layer => [uvLayerKey(layer), uvColors[uvColorIndex(layer) % uvColors.length]]));
+  const meshes = [];
+  for (const part of assembly.values()) {
+    const matrix = partMounts.get(part.path)?.matrix || new THREE.Matrix4();
+    for (const mesh of part.meshes) {
+      const positions = new THREE.Float32BufferAttribute(mesh.positions, 3);
+      const normals = new THREE.Float32BufferAttribute(mesh.normals, 3);
+      positions.applyMatrix4(matrix);
+      normals.applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(matrix));
+      meshes.push({...mesh, positions:positions.array, normals:normals.array,
+        componentColor:selected.get(`${part.path}:${mesh.materialIndex}`) || null});
+    }
+  }
+  return makeThumbnail({meshes}, {identifyComponent:true, size:220});
+}
+
+let componentDiagramKey = '';
+function renderComponentScope() {
+  const layers = componentMode ? editingTextureLayers() : activeTextureLayers(), box = $('component-scope');
+  box.classList.toggle('hidden', !textureSelected || !layers.length);
+  if (!textureSelected || !layers.length) { componentDiagramKey = ''; return; }
+  $('component-name').textContent = componentMode
+    ? `${sharedComponentName(layers[0].part)} · ${layers[0].material.name}`
+    : `Shared texture · ${[...new Set(layers.map(layer => sharedComponentName(layer.part)))].join(' + ')}`;
+  $('component-note').textContent = componentMode
+    ? 'Editing only the highlighted component. Other components keep their own images; their UV regions combine automatically for install, export and publishing.'
+    : 'This texture is shared by the highlighted components. Select a component card to edit only that part, or keep editing the shared texture.';
+  const key = `${selectionSerial}:${loadoutSerial}:${uvLayerKey(layers[0])}:${componentMode}:${layers.map(uvLayerKey).join('|')}`;
+  if (key !== componentDiagramKey) {
+    componentDiagramKey = key;
+    $('component-preview').removeAttribute('src');
+    sharedComponentThumbnail(layers).then(png => {
+      if (componentDiagramKey === key) $('component-preview').src = png;
+    }).catch(error => { if (componentDiagramKey === key) toast(`Component preview failed: ${error}`, true); });
+  }
+}
+function showComponentOverview() {
+  textureSelected = false; componentMode = false; componentSelectionSerial++;
+  highlightedMaterial = null; updateMaterialHighlight();
+  renderMaterials();
+}
+$('show-component-overview').addEventListener('click', showComponentOverview);
+
+function renderComponentOverview() {
+  $('component-overview').classList.toggle('hidden', !model || textureSelected);
+  $('texture-editor').classList.toggle('hidden', !textureSelected);
+  $('inspector-title').textContent = textureSelected ? componentMode ? 'Component texture' : 'Shared texture' : 'Components';
+  if (!model || textureSelected) return;
+  const selections = textureGroups().flat().map(layer => {
+    const assigned = componentEdit(layer.part, layer.index);
+    const edit = assigned || textureEdit(layer.material);
+    const options = textureVariants.filter(variant => variantMatches(variant, layer.material));
+    const selection = !edit || edit.original || edit.png === layer.material.image ? 'original'
+      : edit.variantId && options.some(variant => variant.id === edit.variantId) ? edit.variantId : 'current';
+    return `${uvLayerKey(layer)}:${selection}`;
+  }).join('|');
+  const key = `${selectionSerial}:${loadoutSerial}:${textureVariants.map(variant => `${variant.id}:${variant.name}`).join('|')}:${selections}`;
+  if (key === overviewKey) return;
+  overviewKey = key;
+  const sharedContainer = $('shared-texture-cards'); sharedContainer.replaceChildren();
+  for (const group of textureGroups()) {
+    const layers = group.filter(layer => layer.material.image
+      && layer.part.meshes.some(mesh => mesh.materialIndex === layer.index));
+    if (new Set(layers.map(layer => layer.part.path)).size < 2) continue;
+    const row = document.createElement('section'); row.className = 'shared-texture-card';
+    const open = document.createElement('button'); open.type = 'button'; open.className = 'component-card-open';
+    open.dataset.textureKey = textureKey(layers[0].material);
+    const image = document.createElement('img'); image.alt = 'Components using this shared texture';
+    const name = document.createElement('strong');
+    name.textContent = (layers[0].material.vtfPath || layers[0].material.name).split('/').pop();
+    const owners = document.createElement('small');
+    owners.textContent = [...new Set(layers.map(layer => sharedComponentName(layer.part)))].join(' + ');
+    const applied = document.createElement('small');
+    const edit = textureEdit(layers[0].material);
+    const appliedEdit = componentEdit(layers[0].part, layers[0].index) || edit;
+    const variant = textureVariants.find(variant => variant.id === edit?.variantId)
+      || textureVariants.find(variant => variant.id === appliedEdit?.variantId);
+    const sources = new Set(layers.map(layer => (componentEdit(layer.part, layer.index) || textureEdit(layer.material))?.png || layer.material.image));
+    applied.textContent = sources.size > 1 ? `Applied: Combined component textures${variant && edit?.variantId === variant.id ? ` · ${variantLabel(variant)}` : ''}`
+      : variant ? `Applied: ${variantLabel(variant)}`
+      : !appliedEdit || appliedEdit.png === layers[0].material.image ? 'Applied: Original / default' : 'Applied: Current draft texture';
+    open.append(image, name, owners, applied);
+    open.addEventListener('click', () => selectTextureLayer(layers[0]));
+    row.append(open); sharedContainer.append(row);
+    sharedComponentThumbnail(layers).then(png => {
+      if (row.isConnected) image.src = png;
+    }).catch(error => {
+      if (row.isConnected) {
+        const warning = document.createElement('small'); warning.textContent = `Preview unavailable: ${error}`; row.append(warning);
+      }
+    });
+  }
+  $('shared-texture-overview').classList.toggle('hidden', !sharedContainer.childElementCount);
+  const container = $('component-cards'); container.replaceChildren();
+  for (const layers of textureGroups()) for (const layer of layers) {
+    if (!layer.material.image || !layer.part.meshes.some(mesh => mesh.materialIndex === layer.index)) continue;
+    const row = document.createElement('section'); row.className = 'component-card';
+    const open = document.createElement('button'); open.type = 'button'; open.className = 'component-card-open';
+    open.dataset.layerKey = uvLayerKey(layer);
+    const image = document.createElement('img'); image.alt = `Edit ${sharedComponentName(layer.part)} · ${layer.material.name}`;
+    const name = document.createElement('strong'); name.textContent = sharedComponentName(layer.part);
+    name.style.color = uvColors[uvColorIndex(layer)];
+    const region = document.createElement('small'); region.textContent = `${layer.material.name}${layers.length > 1 ? ` · shared by ${layers.length} components` : ''}`;
+    open.append(image, name, region);
+    open.addEventListener('click', () => selectTextureLayer(layer, true));
+    const select = document.createElement('select'); select.setAttribute('aria-label', `Skin for ${sharedComponentName(layer.part)} · ${layer.material.name}`);
+    select.append(new Option('Current component image', 'current'), new Option('Original / default', 'original'));
+    for (const variant of textureVariants.filter(variant => variantMatches(variant, layer.material))) select.append(new Option(variantLabel(variant), variant.id));
+    const assigned = componentEdit(layer.part, layer.index), edit = assigned || textureEdit(layer.material);
+    const selectedVariant = edit?.variantId && [...select.options].some(option => option.value === edit.variantId)
+      ? edit.variantId : null;
+    select.value = !edit || edit.original || edit.png === layer.material.image
+      ? 'original' : selectedVariant || 'current';
+    select.addEventListener('change', async () => {
+      if (select.value !== 'current') await applyComponentVariant(select.value, layer);
+    });
+    row.append(open, select); container.append(row);
+    sharedComponentThumbnail([layer]).then(png => {
+      if (row.isConnected) image.src = png;
+    }).catch(error => {
+      if (row.isConnected) { const warning = document.createElement('small'); warning.textContent = `Preview unavailable: ${error}`; row.append(warning); }
+    });
+  }
+}
+
+function variantLabel(variant) {
+  const sameName = textureVariants.filter(other => other.name === variant.name
+    && other.vmtPath === variant.vmtPath && other.vtfPath === variant.vtfPath);
+  if (sameName.length < 2) return variant.name;
+  const sameAlpha = sameName.filter(other => other.hasAlpha === variant.hasAlpha).sort((a, b) => a.id.localeCompare(b.id));
+  const suffix = sameAlpha.length > 1 ? ` ${sameAlpha.findIndex(other => other.id === variant.id) + 1}` : '';
+  return `${variant.name} · ${variant.hasAlpha ? 'Alpha mask' : 'Opaque'}${suffix}`;
+}
+
+function renderTextureLibrary() {
+  const query = $('search').value.trim().toLowerCase();
+  const found = textureVariants.filter(variant => `${variant.name} ${variant.vmtPath} ${variant.vtfPath}`.toLowerCase().includes(query));
+  $('model-count').textContent = found.length.toLocaleString();
+  $('scan-info').textContent = 'Reusable VMT + VTF pairs. Export changed draft textures from the draft actions; installed skins remain discoverable. Deleting here keeps drafts and installed files.';
+  $('texture-warning-summary').textContent = `${textureWarnings.length} textures could not be paired`;
+  $('texture-warning-detail').textContent = textureWarnings.join('\n\n');
+  const list = $('model-list'); list.replaceChildren();
+  if (!found.length) { const empty = document.createElement('p'); empty.className = 'quiet'; empty.textContent = 'No saved textures. Import an image into a draft, then export its changed textures here, or use Save current variant.'; list.append(empty); }
+  for (const variant of found) {
+    const row = document.createElement('div'); row.className = 'skin-item texture-library-card'; row.dataset.variantId = variant.id;
+    const detail = document.createElement('div'); detail.className = 'skin-detail';
+    const open = document.createElement('button'); open.type = 'button'; open.className = 'texture-card-open';
+    const thumb = document.createElement('span'); thumb.className = 'model-thumb';
+    const image = document.createElement('img'); image.src = variant.preview; image.alt = ''; image.loading = 'lazy'; thumb.append(image);
+    const name = document.createElement('strong'); name.textContent = variantLabel(variant);
+    const info = document.createElement('small'); info.textContent = `${variant.width} × ${variant.height} · VMT + VTF`;
+    const path = document.createElement('small'); path.className = 'skin-path'; path.textContent = variant.vmtPath; path.title = variant.vmtPath;
+    open.append(thumb, name, info, path); open.addEventListener('click', () => viewTextureVariant(variant.id)); detail.append(open);
+    const actions = document.createElement('div'); actions.className = 'skin-tools';
+    const apply = document.createElement('button'); apply.type = 'button'; apply.className = 'button secondary'; apply.textContent = 'Use on selected texture';
+    apply.disabled = !textureSelected || !variantMatches(variant) || variantBusy; apply.addEventListener('click', () => applyTextureVariant(variant.id));
+    const rename = document.createElement('button'); rename.type = 'button'; rename.className = 'button secondary'; rename.textContent = 'Rename';
+    rename.addEventListener('click', () => renameTextureVariant(variant));
+    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'button danger'; remove.textContent = 'Delete';
+    remove.addEventListener('click', async () => {
+      if (!confirm(`Delete saved texture "${variant.name}"?\nDrafts and installed files will be kept.`)) return;
+      remove.disabled = true;
+      try { await invoke('delete_texture_variant', {id:variant.id}); await refreshTextureVariants(); toast('Texture removed from the library. Drafts and installed files were kept.'); }
+      catch (error) { toast(`Texture could not be deleted: ${error}`, true); remove.disabled = false; }
+    });
+    actions.append(apply, rename, remove); detail.append(actions); row.append(detail); list.append(row);
+  }
+}
+
+async function refreshTextureVariants() {
+  const library = await invoke('list_texture_variants');
+  textureVariants = library.variants;
+  textureWarnings = library.warnings;
+  renderTextureVariants();
+  if (libraryView === 'textures') renderList();
+}
+
+async function renameTextureVariant(variant) {
+  const dialog = $('rename-variant-dialog');
+  if (dialog.open) return;
+  $('rename-variant-name').value = variant.name;
+  dialog.returnValue = '';
+  const rename = await new Promise(resolve => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'rename'), {once:true});
+    dialog.showModal();
+  });
+  if (!rename) return;
+  try {
+    await invoke('rename_texture_variant', {id:variant.id, name:$('rename-variant-name').value.trim()});
+    await refreshTextureVariants();
+    toast('Texture renamed. Drafts and installed files were kept unchanged.');
+  } catch (error) { toast(`Texture could not be renamed: ${error}`, true); }
+}
+
+async function viewTextureVariant(id) {
+  try {
+    const variant = await invoke('load_texture_variant', {id});
+    const dialog = $('texture-variant-dialog');
+    if (dialog.open) return;
+    $('texture-variant-title').textContent = variantLabel(variant);
+    $('texture-variant-paths').textContent = `${variant.width} × ${variant.height}\n${variant.vmtPath}\n${variant.vtfPath}`;
+    $('texture-variant-preview').src = variant.preview; $('texture-variant-vmt').textContent = variant.vmtText;
+    $('apply-texture-variant').disabled = !textureSelected || !variantMatches(variant) || variantBusy;
+    dialog.returnValue = '';
+    const apply = await new Promise(resolve => {
+      dialog.addEventListener('close', () => resolve(dialog.returnValue === 'apply'), {once:true}); dialog.showModal();
+    });
+    if (apply) await applyTextureVariant(id);
+  } catch (error) { toast(`Texture could not be opened: ${error}`, true); }
+}
+
+async function applyTextureVariant(id) {
+  if (variantBusy) return;
+  const material = activeMaterial(), part = activePartPath, serial = selectionSerial, loadout = loadoutSerial, scope = componentSelectionSerial;
+  variantBusy = true; renderTextureVariants();
+  try {
+    const variant = id === 'original' ? null : await invoke('load_texture_variant', {id});
+    if (!textureSelected || !material?.image || (variant && !variantMatches(variant, material))) throw new Error('Choose a texture with matching VMT / VTF paths and dimensions first.');
+    if (serial !== selectionSerial || loadout !== loadoutSerial || scope !== componentSelectionSerial || part !== activePartPath || skinKey(material) !== skinKey(activeMaterial())) {
+      throw new Error('The selected part changed. Choose the variant again for the intended texture.');
+    }
+    await importTexture(async () => ({png:variant?.png || material.image, vmtText:componentMode ? null : variant?.vmtText || material.vmtText,
+      variantId:variant?.id, original:!variant}), {remember:false});
+  } catch (error) { toast(`Variant could not be applied: ${error}`, true); }
+  finally { variantBusy = false; renderTextureVariants(); if (libraryView === 'textures') renderList(); }
+}
+
+$('variant-select').addEventListener('change', event => {
+  if (event.target.value !== 'current') applyTextureVariant(event.target.value);
+});
+
+async function applyComponentVariant(id, layer) {
+  if (variantBusy) return;
+  const partPath = layer.part.path, materialIndex = layer.index, material = layer.material;
+  const serial = selectionSerial, loadout = loadoutSerial, scope = componentSelectionSerial;
+  variantBusy = true;
+  try {
+    const variant = id === 'original' ? null : await invoke('load_texture_variant', {id});
+    if (!material?.image || (variant && !variantMatches(variant, material))) {
+      throw new Error('Choose a texture with matching VMT / VTF paths and dimensions first.');
+    }
+    if (serial !== selectionSerial || loadout !== loadoutSerial || scope !== componentSelectionSerial
+      || assembly.get(partPath)?.materials[materialIndex] !== material) {
+      throw new Error('The model or component changed. Choose the variant again for the intended part.');
+    }
+    const png = variant?.png || material.image;
+    const image = new Image(); image.src = png; await image.decode();
+    const key = skinKey(material);
+    if (!edits.has(key)) edits.set(key, {...textureEdit(material), key, partPath,
+      vmtPath:material.vmtPath, vtfPath:material.vtfPath, vmtText:material.vmtText,
+      png:textureEdit(material)?.png || material.image, image:textureEdit(material)?.image || image});
+    const identity = uvLayerKey(layer), current = componentEdits.get(identity) || edits.get(key);
+    componentEdits.set(identity, {...current, partPath, materialIndex, vmtPath:material.vmtPath,
+      vtfPath:material.vtfPath, png, image, variantId:variant?.id});
+    renderAssembly(); renderMaterials();
+    await saveDraft();
+  } catch (error) { toast(`Component texture could not be changed: ${error}`, true); }
+  finally { variantBusy = false; renderTextureVariants(); renderComponentOverview(); }
+}
+$('library-import-texture').addEventListener('click', () => {
+  if (!textureSelected || !activeMaterial()) { toast('Select a model texture before importing a variant.', true); return; }
+  $('png-input').click();
+});
+$('save-texture-variant').addEventListener('click', async () => {
+  const material = activeMaterial(), edit = currentEdit(), dialog = $('save-variant-dialog');
+  if (!material || variantBusy || dialog.open) return;
+  const input = {name:'', vmtPath:material.vmtPath, vtfPath:material.vtfPath,
+    vmtText:edits.get(skinKey(material))?.vmtText ?? material.vmtText, png:edit?.png || material.image};
+  $('variant-name').value = `${draftSession?.name || attachmentName(activePart())} - ${material.name}`.slice(0, 100);
+  dialog.returnValue = '';
+  const save = await new Promise(resolve => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'save'), {once:true}); dialog.showModal();
+  });
+  if (!save) return;
+  try {
+    input.name = $('variant-name').value.trim();
+    const saved = await invoke('save_texture_variant', {texture:input});
+    if (edit?.png === input.png && currentEdit() === edit) edit.variantId = saved.id;
+    await refreshTextureVariants(); toast('VMT / VTF variant saved to Textures.');
+  } catch (error) { toast(`Variant could not be saved: ${error}`, true); }
+});
 
 function visibleModels() { return compatibleOnly ? models.filter(item => item.compatible) : models; }
 
@@ -714,7 +1076,10 @@ function renderCustomSkins() {
   $('model-count').textContent = (found.length + saved.length).toLocaleString();
   $('scan-info').textContent = 'Share with Export skin or Import skin. Uninstall keeps your saved copy; Delete skin removes it and matching installed files.'
     + (installAvailable ? '' : ' Choose your Garry\'s Mod folder to check installed status or uninstall.');
-  const list = $('model-list'); list.replaceChildren();
+  const list = $('model-list');
+  const previews = new Map([...list.querySelectorAll('[data-draft-id][data-thumbnail-key]')]
+    .map(row => [row.dataset.thumbnailKey, row.querySelector('.draft-thumb')]));
+  list.replaceChildren();
   for (const draft of saved) {
     const row = document.createElement(draft.archived ? 'div' : 'button');
     row.className = `skin-item${draftSession?.id === draft.id ? ' active' : ''}`; row.dataset.draftId = draft.id;
@@ -723,11 +1088,12 @@ function renderCustomSkins() {
       row.addEventListener('click', () => openDraft(draft));
       const cacheKey = `draft:${draft.id}:${draftThumbnailVersions.get(draft.id) || 0}`;
       row.dataset.thumbnailKey = cacheKey;
-      const preview = document.createElement('span'); preview.className = 'model-thumb draft-thumb';
-      if (thumbnailCache.has(cacheKey)) {
+      const retained = previews.get(cacheKey);
+      const preview = retained || document.createElement('span'); preview.className = 'model-thumb draft-thumb';
+      if (!retained && thumbnailCache.has(cacheKey)) {
         const image = document.createElement('img'); image.src = thumbnailCache.get(cacheKey); image.alt = '';
         preview.append(image);
-      } else preview.textContent = 'Loading preview';
+      } else if (!retained) preview.textContent = 'Loading preview';
       row.append(preview);
       if (!thumbnailCache.has(cacheKey)) thumbnailObserver.observe(row);
     }
@@ -737,6 +1103,7 @@ function renderCustomSkins() {
     const installed = !installAvailable ? 'Install status unavailable' : draft.installedCount === 0 ? 'Not installed'
       : draft.installedCount === draft.installableCount ? 'Installed' : `Partly installed (${draft.installedCount}/${draft.installableCount})`;
     status.textContent = `${draft.archived ? 'Saved skin backup' : `Saved draft · ${draft.textureCount} edited textures`} · ${installed}`;
+    if (draft.componentError) { status.textContent += ` · Output blocked: ${draft.componentError}`; status.classList.add('error'); }
     const path = document.createElement('small'); path.className = 'skin-path'; path.textContent = draft.modelPath.split('/').pop() || 'VMT / VTF backup'; path.title = draft.modelPath;
     const actions = document.createElement('div'); actions.className = 'skin-actions';
     const tools = document.createElement('div'); tools.className = 'skin-tools';
@@ -764,6 +1131,17 @@ function renderCustomSkins() {
     const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'delete-skin'; remove.textContent = 'Delete';
     remove.addEventListener('click', () => deleteSkin(skin));
     const actions = document.createElement('div'); actions.className = 'skin-actions';
+    const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'button secondary';
+    edit.textContent = 'Open as editable draft';
+    edit.disabled = !contentScanned || !skin.vmtPath || !skin.hasVtf;
+    edit.title = !skin.vmtPath || !skin.hasVtf ? 'Both an installed material and texture are required' : 'Find matching models and confirm before creating an editable copy';
+    edit.addEventListener('click', async () => {
+      edit.disabled = true;
+      try { await editInstalledSkin(skin); }
+      catch (error) { toast(`Installed skin could not be opened: ${error}`, true); }
+      finally { edit.disabled = false; }
+    });
+    actions.append(edit);
     const uninstall = document.createElement('button'); uninstall.type = 'button'; uninstall.className = 'button secondary'; uninstall.textContent = 'Uninstall';
     uninstall.addEventListener('click', () => archiveInstalledSkin(skin));
     const share = document.createElement('button'); share.type = 'button'; share.className = 'button secondary'; share.textContent = 'Export skin';
@@ -774,8 +1152,33 @@ function renderCustomSkins() {
   }
 }
 
+async function editInstalledSkin(skin) {
+  toast('Finding models that use this installed material…');
+  const paths = await invoke('installed_skin_models', {id:skin.id});
+  if (!paths.length) throw new Error('No compatible model uses this installed material. Refresh models or export a backup; no files were changed.');
+  const dialog = $('installed-draft-dialog'), select = $('installed-draft-model');
+  if (dialog.open) throw new Error('Finish the current model selection first.');
+  select.replaceChildren();
+  for (const path of paths) {
+    const option = document.createElement('option'); option.value = path; option.textContent = path; select.append(option);
+  }
+  dialog.returnValue = '';
+  const confirmed = await new Promise(resolve => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'open'), {once:true});
+    dialog.showModal();
+  });
+  if (!confirmed) return;
+  await saveDraft();
+  const draft = await invoke('edit_installed_skin', {id:skin.id, modelPath:select.value});
+  await refreshSkins();
+  await openDraft(draft);
+}
+
 async function refreshSkins() {
   [customSkins, drafts] = await Promise.all([invoke('list_custom_skins'), invoke('list_drafts')]);
+  try { await refreshTextureVariants(); }
+  catch (error) { toast(`Texture library could not be refreshed: ${error}`, true); }
+  renderTextureVariants();
   renderList();
   renderDraftActions();
   if (model) renderMaterials();
@@ -855,14 +1258,15 @@ function renderDraftStatus() {
   $('save-draft').disabled = !edits.size;
   if (!draftSession) return;
   if (document.activeElement !== $('draft-name')) $('draft-name').value = draftSession.name;
-  $('draft-status').textContent = draftSession.status || 'Import a texture to start autosaving.';
-  $('draft-status').classList.toggle('error', draftSession.failed || false);
+  $('draft-status').textContent = draftSession.componentError ? `Saved locally · output blocked: ${draftSession.componentError}` : draftSession.status || 'Import a texture to start autosaving.';
+  $('draft-status').classList.toggle('error', !!draftSession.componentError || draftSession.failed || false);
 }
 
 function renderDraftActions() {
   const draft = drafts.find(item => item.id === draftSession?.id && !item.archived);
   $('draft-actions').classList.toggle('hidden', !draft);
   if (!draft) return;
+  $('export-draft-textures').title = 'Copy changed draft textures to the library only when you choose.';
   $('install-draft').hidden = draft.installableCount <= draft.installedCount;
   $('install-draft').disabled = !installAvailable;
   $('uninstall-draft').hidden = !draft.installedCount;
@@ -870,6 +1274,7 @@ function renderDraftActions() {
 for (const [id, action] of [
   ['publish-draft', stageWorkshopDraft],
   ['export-draft', draft => exportSkin('export_draft', draft.id)],
+  ['export-draft-textures', exportDraftTexturesToLibrary],
   ['install-draft', restoreSavedSkin],
   ['uninstall-draft', uninstallSavedDraft],
   ['delete-draft', deleteSavedDraft],
@@ -883,9 +1288,76 @@ for (const [id, action] of [
   });
 }
 
+async function exportDraftTexturesToLibrary(draft) {
+  let output;
+  try {
+    await saveDraft();
+    output = await invoke('prepare_draft_output', {id:draftSession?.id || draft.id});
+  } catch (error) {
+    toast(`Draft textures could not be prepared for the library: ${error}`, true);
+    return;
+  }
+  const draftName = output.name;
+  const inputs = [];
+  const identity = texture => JSON.stringify([texture.vmtPath.toLowerCase(), texture.vtfPath.toLowerCase(), texture.vmtText, texture.png]);
+  const known = new Set(textureVariants.map(identity));
+  const add = (name, material, edit) => {
+    if (!edit?.png || !material?.vmtPath || !material?.vtfPath || !material?.vmtText) return;
+    if (edit.png === material.image) return;
+    const texture = {name:name.slice(0, 200), vmtPath:material.vmtPath, vtfPath:material.vtfPath,
+      vmtText:edit.vmtText || material.vmtText, png:edit.png};
+    const key = identity(texture);
+    if (known.has(key)) return;
+    known.add(key);
+    inputs.push(texture);
+  };
+  for (const texture of output.textures) {
+    const material = [...assembly.values()].flatMap(part => part.materials).find(info => skinKey(info) === texture.key);
+    add(`${draftName} - ${material?.name || 'Texture'}`, material, texture);
+  }
+  if (!inputs.length) { toast('There are no new changed draft textures to add. Existing library variants are already saved.'); return; }
+  let saved = 0;
+  try {
+    for (const texture of inputs) { await invoke('save_texture_variant', {texture}); saved++; }
+    await refreshTextureVariants();
+    toast(`Saved ${saved} draft texture${saved === 1 ? '' : 's'} to the library. Your draft was kept unchanged.`);
+  } catch (error) {
+    try { await refreshTextureVariants(); }
+    catch (refreshError) { toast(`Saved ${saved} of ${inputs.length} draft textures; library refresh failed: ${refreshError}`, true); return; }
+    toast(`Saved ${saved} of ${inputs.length} draft textures before export failed: ${error}`, true);
+  }
+}
+
+function sameDraftPreview(previous, current) {
+  if (!previous || previous.modelPath !== current.modelPath) return false;
+  const slots = value => JSON.stringify(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)));
+  if (slots(previous.slotSelections) !== slots(current.slotSelections)) return false;
+  const sameRecords = (before, after, key, fields) => {
+    if (before.length !== after.length) return false;
+    const records = new Map(before.map(record => [key(record), record]));
+    return after.every(record => {
+      const old = records.get(key(record));
+      return old && fields.every(field => (old[field] ?? '') === (record[field] ?? ''));
+    });
+  };
+  return sameRecords(previous.textures, current.textures, texture => texture.key, ['png', 'vmtText'])
+    && sameRecords(previous.componentTextures || [], current.componentTextures || [],
+      texture => `${texture.partPath}:${texture.materialIndex}`, ['png']);
+}
+
 function saveDraft() {
+  if (draftSession?.deletionPromise) return draftSession.deletionPromise;
   if (!model || !edits.size || !draftSession) return draftSaveQueue;
   syncSharedTextureEdits();
+  for (const layers of textureGroups()) {
+    if (!layers.some(layer => componentEdits.has(uvLayerKey(layer)))) continue;
+    for (const layer of layers) {
+      if (componentEdits.has(uvLayerKey(layer)) || !layer.part.meshes.some(mesh => mesh.materialIndex === layer.index)) continue;
+      const base = textureEdit(layer.material);
+      componentEdits.set(uvLayerKey(layer), {...base, partPath:layer.part.path, materialIndex:layer.index,
+        vtfPath:layer.material.vtfPath, vmtPath:layer.material.vmtPath, png:base?.png || layer.material.image});
+    }
+  }
   const session = draftSession;
   const snapshot = {
     version: 1, name: session.name, modelPath: model.path, slotSelections: Object.fromEntries(slotSelections),
@@ -896,17 +1368,36 @@ function saveDraft() {
       key, partPath: edit.partPath, vmtPath: edit.vmtPath || null,
       vtfPath: edit.vtfPath || null, vmtText: edit.vmtText || null, png: edit.png, stripAlpha: edit.stripAlpha || false,
     })),
+    componentTextures:[...componentEdits.values()].map(edit => ({
+      partPath:edit.partPath, materialIndex:edit.materialIndex, png:edit.png,
+    })),
   };
   session.status = 'Saving draft…'; session.failed = false; renderDraftStatus();
   const job = draftSaveQueue.then(async () => {
     const saved = await invoke('save_draft', {draft: {...snapshot, id: session.id}});
     session.id = saved.id;
-    const previewVersion = draftThumbnailVersions.get(saved.id) || 0;
-    thumbnailCache.delete(`draft:${saved.id}:${previewVersion}`);
-    draftThumbnailVersions.set(saved.id, previewVersion + 1);
+    session.componentError = saved.componentError;
+    if (draftSession === session && snapshot.componentTextures.length && !saved.componentError) {
+      for (const texture of saved.textures) {
+        const edit = edits.get(texture.key);
+        if (edit?.png !== snapshot.textures.find(item => item.key === texture.key)?.png) continue;
+        const image = new Image(); image.src = texture.png; await image.decode();
+        edits.set(texture.key, {...edit, ...texture, image});
+      }
+    }
+    const previewChanged = !sameDraftPreview(session.thumbnailSnapshot, saved);
+    session.thumbnailSnapshot = saved;
+    if (previewChanged) {
+      const previewVersion = draftThumbnailVersions.get(saved.id) || 0;
+      thumbnailCache.delete(`draft:${saved.id}:${previewVersion}`);
+      draftThumbnailVersions.set(saved.id, previewVersion + 1);
+    }
     session.status = 'Saved locally · safe to close'; session.failed = false;
-    await refreshSkins();
+    drafts = await invoke('list_drafts');
+    renderList();
+    renderDraftActions();
     if (draftSession === session) renderDraftStatus();
+    if (draftSession === session && snapshot.componentTextures.length) renderMaterials();
   }).catch(error => {
     session.status = 'Save failed · click Save now to retry'; session.failed = true;
     if (draftSession === session) renderDraftStatus();
@@ -933,7 +1424,11 @@ async function openDraft(summary) {
     if (!contentScanned) throw new Error('Choose your content or Garry\'s Mod folder before opening a draft.');
     const restored = await Promise.all(draft.textures.map(async texture => {
       const image = new Image(); image.src = texture.png; await image.decode();
-      return {...texture, image};
+      return {...texture, image, variantId:draft.variantIds?.[texture.key]};
+    }));
+    const restoredComponents = await Promise.all((draft.componentTextures || []).map(async texture => {
+      const image = new Image(); image.src = texture.png; await image.decode();
+      return {...texture, image, variantId:draft.componentVariantIds?.[`${texture.partPath}:${texture.materialIndex}`]};
     }));
     const serial = ++selectionSerial;
     const detail = await invoke('open_model', {path: draft.modelPath});
@@ -947,17 +1442,26 @@ async function openDraft(summary) {
       }
     }
     draftSession = {id: draft.id, name: draft.name, status: 'Saved locally · restored', failed: false,
-      aiOriginals:draft.aiOriginals || [], workshopSource:draft.workshopSource};
+      aiOriginals:draft.aiOriginals || [], workshopSource:draft.workshopSource, componentError:draft.componentError,
+      thumbnailSnapshot:draft};
     for (const edit of restored) edits.set(edit.key, edit);
+    for (const edit of restoredComponents) {
+      const part = assembly.get(edit.partPath), material = part?.materials[edit.materialIndex];
+      if (material?.width && (edit.image.width !== material.width || edit.image.height !== material.height)) {
+        throw new Error('Saved component dimensions no longer match the original material.');
+      }
+      componentEdits.set(`${edit.partPath}:${edit.materialIndex}`, {...edit, vtfPath:material?.vtfPath, vmtPath:material?.vmtPath});
+    }
     activePartPath = assembly.has(draft.activePartPath) ? draft.activePartPath : detail.path;
     const index = activePart().materials.findIndex(material => skinKey(material) === draft.activeMaterialKey);
     materialIndex = index < 0 ? 0 : index;
     selectedPath = detail.path;
+    overviewKey = '';
     renderAssembly(); renderMaterials(); renderRelated(); renderList();
     const unavailable = restored.filter(edit => ![...assembly.values()].some(part =>
       part.materials.some(material => skinKey(material) === edit.key)));
-    toast(unavailable.length ? `Draft opened. ${unavailable.length} edited textures belong to parts not currently mounted; those edits remain saved.`
-      : 'Draft opened with its attachments and edited textures.');
+    toast(draft.variantWarning || (unavailable.length ? `Draft opened. ${unavailable.length} edited textures belong to parts not currently mounted; those edits remain saved.`
+      : 'Draft opened with its attachments and edited textures.'), !!draft.variantWarning);
     return true;
   } catch (error) { toast(`Draft could not be opened: ${error}`, true); return false; }
 }
@@ -982,7 +1486,7 @@ async function archiveInstalledSkin(skin) {
 async function restoreSavedSkin(draft) {
   await runSkinInstall(async () => {
     await saveDraft();
-    const saved = await invoke('load_draft', {id: draft.id});
+    const saved = await invoke('prepare_draft_output', {id: draft.id});
     const textures = saved.textures.filter(texture => supportedMaterial(texture, texture.partPath));
     const choices = await alphaInstallChoices(textures);
     if (!choices) return;
@@ -994,18 +1498,26 @@ async function restoreSavedSkin(draft) {
 
 async function deleteSavedDraft(draft) {
   if (!confirm(`Delete "${draft.name}"?\n${installAvailable ? 'The saved copy and all matching installed textures and attachments will be removed. Shared textures still used by other skins and modified files are kept.' : 'Install location is unavailable: only the saved copy can be removed. Installed game files cannot be checked.'}\nUse Uninstall instead to keep a saved copy. This cannot be undone.`)) return;
-  try {
+  const session = draftSession?.id === draft.id ? draftSession : null;
+  const deletion = (async () => {
     await draftSaveQueue;
     await invoke('delete_draft', {id: draft.id});
     thumbnailCache.delete(`draft:${draft.id}:${draftThumbnailVersions.get(draft.id) || 0}`);
     draftThumbnailVersions.delete(draft.id);
-    if (draftSession?.id === draft.id) {
+    if (session && draftSession === session) {
       draftSession = {id: null, name: `${weaponData()?.name || attachmentName(model)} draft`, status: ''};
-      edits.clear(); importedPng = null; importedImage = null;
+      edits.clear(); componentEdits.clear(); importedPng = null; importedImage = null;
+      overviewKey = '';
       renderAssembly();
+      showComponentOverview();
     }
+  })();
+  if (session) session.deletionPromise = deletion;
+  try {
+    await deletion;
     await refreshSkins(); toast(installAvailable ? 'Skin deleted, including matching installed files. Shared or modified files were kept.' : 'Saved copy deleted. Install location was unavailable; game files were not checked.');
   } catch (error) { toast(String(error), true); }
+  finally { if (session) delete session.deletionPromise; }
 }
 
 async function deleteSkin(skin) {
@@ -1032,58 +1544,21 @@ async function selectModel(item) {
 }
 
 function renderMaterials() {
-  const container = $('materials'); container.replaceChildren();
-  const groups = textureGroups(), selector = $('texture-select');
-  selector.replaceChildren();
-  for (const [groupIndex, layers] of groups.entries()) {
-    const {part, material, index} = layers[0];
-    const edit = textureEdit(material);
-    if (edit) for (const layer of layers) {
-      const key = skinKey(layer.material);
-      if (key && !edits.has(key)) edits.set(key, {...edit, key, partPath: layer.part.path,
-        vmtPath: layer.material.vmtPath, vtfPath: layer.material.vtfPath, vmtText: layer.material.vmtText});
-    }
-    const active = layers.some(layer => layer.part.path === activePartPath && layer.index === materialIndex);
-    const option = document.createElement('option'); option.value = String(groupIndex);
-    option.textContent = `${(material.vtfPath || material.name).split('/').pop()} · ${[...new Set(layers.map(layer => attachmentName(layer.part)))].join(' + ')}`;
-    option.selected = active; selector.append(option);
-    if (!active) continue;
-    const button = document.createElement('button'); button.className = `material-item${active ? ' active' : ''}`;
-    button.dataset.textureKey = textureKey(material) || `${part.path}:${index}`;
-    button.title = layers.map(layerLabel).join('\n');
-    const image = document.createElement('img'); image.className = 'material-swatch';
-    const preview = texturePreviewImage(edit?.png || material.image);
-    if (preview?.naturalWidth) image.src = preview.src;
-    const label = document.createElement('span'); const title = document.createElement('strong');
-    title.textContent = layers.length > 1 ? (material.vtfPath || material.name).split('/').pop() : `${part.path.split('/').pop().replace(/\.mdl$/i, '')} · ${material.name}`;
-    const sub = document.createElement('small');
-    const installed = customSkins.some(skin => skin.id === `vmt:${material.vmtPath?.replace(/^materials\//, '')}`);
-    const status = material.image ? `${material.width} × ${material.height}` : !material.vmtPath ? 'VMT not found' : !material.vtfOrigin ? 'VTF not found' : 'VTF decode failed';
-    sub.textContent = `${status}${layers.length > 1 ? ` · ${layers.length} UV overlays` : ''}${installed ? ' · Custom skin installed' : ''}${edits.has(skinKey(material)) ? ' · Edited' : ''}`;
-    if (layers.length > 1) {
-      const owners = document.createElement('small');
-      owners.textContent = [...new Set(layers.map(layer => attachmentName(layer.part)))].join(' + ');
-      label.append(owners);
-    }
-    label.prepend(title); label.append(sub); button.append(image, label); button.addEventListener('click', () => {
-      selectTextureLayer({part: activePart(), material: activeMaterial(), index: materialIndex});
-    });
-    container.append(button);
-  }
+  syncSharedTextureEdits();
   updateInstallAll();
   renderDraftStatus();
   renderTexture();
+  renderComponentOverview();
 }
-$('texture-select').addEventListener('change', event => {
-  const layer = textureGroups()[Number(event.target.value)]?.[0];
-  if (layer) selectTextureLayer(layer);
-});
-
 function activePart() { return assembly.get(activePartPath); }
 function activeMaterial() { return activePart()?.materials[materialIndex]; }
 function renderUvLayers() {
   const container = $('uv-layers'); container.replaceChildren();
-  activeTextureLayers().forEach(layer => {
+  const layers = activeTextureLayers().filter(layer => layer.part.meshes.some(mesh => mesh.materialIndex === layer.index));
+  const hidden = componentMode || layers.length <= 1;
+  container.classList.toggle('hidden', hidden);
+  if (hidden) return;
+  layers.forEach(layer => {
     const row = document.createElement('div'); row.className = 'uv-layer';
     const label = document.createElement('label');
     const checkbox = document.createElement('input'); checkbox.type = 'checkbox';
@@ -1094,23 +1569,26 @@ function renderUvLayers() {
       renderTexture();
     });
     const swatch = document.createElement('span'); swatch.className = 'uv-color'; swatch.style.background = uvColors[uvColorIndex(layer)];
-    const text = document.createElement('span'); text.textContent = layerLabel(layer);
+    const text = document.createElement('span'); text.textContent = `${sharedComponentName(layer.part)} · ${layer.material.name}`;
     label.append(checkbox, swatch, text);
     const select = document.createElement('button'); select.type = 'button'; select.textContent = 'Highlight';
     select.title = `Highlight ${layerLabel(layer)} in the 3D view`;
     select.addEventListener('click', () => {
+      textureSelected = true; componentSelectionSerial++;
       activePartPath = layer.part.path; materialIndex = layer.index; highlightLayers([layer]);
       renderRelated(); renderMaterials();
       saveDraft().catch(error => toast(`Draft was not saved: ${error}`, true));
     });
-    row.append(label, select); container.append(row);
+    const edit = document.createElement('button'); edit.type = 'button'; edit.textContent = 'Edit component';
+    edit.addEventListener('click', () => selectTextureLayer(layer, true));
+    row.append(label, select, edit); container.append(row);
   });
 }
 function drawUv(context, width, height) {
   context.save();
   context.lineWidth = Math.max(1, width / 512); context.lineJoin = 'round';
   context.beginPath(); context.rect(0, 0, width, height); context.clip();
-  activeTextureLayers().forEach(layer => {
+  editingTextureLayers().forEach(layer => {
     if (hiddenUvLayers.has(uvLayerKey(layer))) return;
     const color = uvColors[uvColorIndex(layer)];
     context.strokeStyle = color;
@@ -1140,11 +1618,12 @@ function drawUv(context, width, height) {
 
 function renderTexture() {
   const material = activeMaterial(), tools = $('texture-tools');
+  renderTextureVariants();
   if (!material) { tools.classList.add('hidden'); return; }
   importedPng = currentEdit()?.png || null;
   importedImage = currentEdit()?.image || null;
   tools.classList.remove('hidden');
-  const layers = activeTextureLayers();
+  const layers = editingTextureLayers();
   $('material-name').textContent = layers.length > 1 ? (material.vtfPath || material.name).split('/').pop() : material.name;
   renderUvLayers();
   $('texture-size').textContent = material.width ? `${material.width} × ${material.height}` : 'No VTF';
@@ -1154,18 +1633,34 @@ function renderTexture() {
   $('vtf-origin').textContent = material.vtfOrigin || 'Not found';
   $('vmt-text').textContent = [...new Map(layers.map(layer =>
     [skinKey(layer.material) || uvLayerKey(layer), layer.material])).values()]
-    .map(info => `${info.vmtPath || info.name}\n${info.vmtText || 'VMT not found'}`).join('\n\n');
+    .map(info => `${info.vmtPath || info.name}\n${edits.get(skinKey(info))?.vmtText ?? info.vmtText ?? 'VMT not found'}`).join('\n\n');
   const skinSupported = supportedMaterial(material);
   $('export-vtf').disabled = !importedPng || !skinSupported;
   $('copy-png').disabled = !(importedPng || material.image);
-  $('import-note').textContent = !skinSupported
+  $('import-note').textContent = componentMode
+    ? 'Imports and variants affect only this component. Other components stay unchanged. Their UV regions combine automatically for install, export and publishing; incompatible overlaps block output. VMT shader settings stay shared.'
+    : !skinSupported
     ? material.vmtPath?.includes('reticles')
       ? 'Reticles are preview-only: PERPHEADS explicitly skips custom reticle materials when loading skins.'
       : 'This material can be previewed and mapped. Installation supports finished weapons and attachments using v_models or Jarheads weapon materials.'
     : importedPng
-      ? 'Edited texture is previewed on every visible part sharing this VTF. Each colored UV overlay identifies one part.'
-      : 'Import a PNG or DDS with the same dimensions to preview it. You can also export the original texture for editing.';
-  const triangles = [];
+      ? 'Shared atlas preview. Component edits keep their own images in 3D. Importing here replaces this shared texture and clears its component overrides.'
+      : 'Import a PNG, DDS or VTF with matching dimensions, optionally selecting its VMT + VTF together. Changes are saved only in the draft; use Export draft textures to library when you want a reusable copy.';
+  renderUvCoordinates();
+  const canvas = $('texture-canvas'), width = material.width || 512, height = material.height || 512;
+  canvas.width = width; canvas.height = height;
+  const context = canvas.getContext('2d'); context.clearRect(0, 0, width, height);
+  const img = texturePreviewImage(importedPng || material.image, $('show-alpha').checked);
+  if (img?.complete && img.naturalWidth) context.drawImage(img, 0, 0, width, height);
+  if ($('show-uv').checked) drawUv(context, width, height);
+}
+
+function renderUvCoordinates() {
+  const output = $('uv-coordinates');
+  if (!$('uv-coordinate-details').open) { output.textContent = ''; return; }
+  const material = activeMaterial();
+  if (!material) { output.textContent = ''; return; }
+  const triangles = [], layers = editingTextureLayers();
   for (const layer of layers) {
     if (hiddenUvLayers.has(uvLayerKey(layer))) continue;
     triangles.push(layerLabel(layer));
@@ -1181,15 +1676,10 @@ function renderTexture() {
     }
     }
   }
-  $('uv-coordinates').textContent = triangles.join('\n') || 'No triangles use this material.';
-  const canvas = $('texture-canvas'), width = material.width || 512, height = material.height || 512;
-  canvas.width = width; canvas.height = height;
-  const context = canvas.getContext('2d'); context.clearRect(0, 0, width, height);
-  const img = texturePreviewImage(importedPng || material.image, $('show-alpha').checked);
-  if (img?.complete && img.naturalWidth) context.drawImage(img, 0, 0, width, height);
-  if ($('show-uv').checked) drawUv(context, width, height);
+  output.textContent = triangles.join('\n') || 'No triangles use this material.';
 }
 
+$('uv-coordinate-details').addEventListener('toggle', renderUvCoordinates);
 $('show-uv').addEventListener('change', renderTexture);
 $('show-alpha').addEventListener('change', renderTexture);
 async function savePng(name, dataUrl) {
@@ -1208,7 +1698,18 @@ $('export-image').addEventListener('click', async () => {
   });
   if (choice !== 'export') return;
   const format = $('export-format').value;
-  try { const saved = await invoke(format === 'dds' ? 'save_dds' : 'save_png', {name: material.name.split('/').pop(), pngBase64: image}); if (saved) toast(`Saved ${format.toUpperCase()}: ${saved}`); }
+  try {
+    let png = image;
+    if (componentEdits.size) {
+      await saveDraft();
+      const output = await invoke('prepare_draft_output', {id:draftSession.id});
+      const texture = output.textures.find(texture => texture.vtfPath === material.vtfPath);
+      if (!texture) throw new Error('The selected shared texture is missing from this draft output.');
+      png = texture.png;
+    }
+    const saved = await invoke(format === 'dds' ? 'save_dds' : 'save_png', {name: material.name.split('/').pop(), pngBase64:png});
+    if (saved) toast(`Saved ${format.toUpperCase()}: ${saved}`);
+  }
   catch (error) { toast(String(error), true); }
 });
 function uvOverlayPng(material) {
@@ -1237,34 +1738,93 @@ $('copy-overlay').addEventListener('click', () => {
 async function importTexture(loadImage) {
   const material = activeMaterial();
   if (!material) { toast('Select a texture before importing an image.', true); return; }
-  const partPath = activePartPath, selectedKey = skinKey(material), serial = selectionSerial, loadout = loadoutSerial, layers = activeTextureLayers();
+  const partPath = activePartPath, selectedKey = skinKey(material), serial = selectionSerial, loadout = loadoutSerial,
+    scope = componentSelectionSerial, component = componentMode, layers = editingTextureLayers();
   try {
-    const dataUrl = await loadImage();
+    const loaded = await loadImage();
+    let dataUrl = typeof loaded === 'string' ? loaded : loaded.png;
+    const vmtText = typeof loaded === 'string' ? null : loaded.vmtText;
     const img = new Image(); img.src = dataUrl; await img.decode();
-    if (serial !== selectionSerial || loadout !== loadoutSerial) throw new Error('The model changed during import. Import the texture again on the intended model.');
-    if (material.width && (img.width !== material.width || img.height !== material.height)) throw new Error(`Image must be ${material.width} × ${material.height} to match this VTF.`);
-    for (const layer of layers) {
+    if (serial !== selectionSerial || loadout !== loadoutSerial || scope !== componentSelectionSerial) throw new Error('The model or component changed during import. Import the texture again on the intended model.');
+    if (material.width && material.height && (img.width !== material.width || img.height !== material.height)) {
+      const dialog = $('resize-image-dialog');
+      if (dialog.open) throw new Error('Finish the current resize confirmation before importing another image.');
+      $('resize-image-message').textContent = `This image is ${img.width} × ${img.height}. This texture requires ${material.width} × ${material.height}.`;
+      dialog.returnValue = 'cancel';
+      const resize = await new Promise(resolve => {
+        dialog.addEventListener('close', () => resolve(dialog.returnValue === 'resize'), {once:true});
+        dialog.showModal();
+      });
+      if (!resize) { toast('Image import cancelled. The texture was not changed.'); return false; }
+      const resized = document.createElement('canvas');
+      resized.width = material.width; resized.height = material.height;
+      const context = resized.getContext('2d');
+      context.imageSmoothingEnabled = true; context.imageSmoothingQuality = 'high';
+      context.drawImage(img, 0, 0, resized.width, resized.height);
+      dataUrl = resized.toDataURL('image/png');
+      img.src = dataUrl; await img.decode();
+    }
+    if (serial !== selectionSerial || loadout !== loadoutSerial || scope !== componentSelectionSerial) throw new Error('The model or component changed during import. The texture was not applied.');
+    if (component) {
+      const prepared = await Promise.all(activeTextureLayers()
+        .filter(layer => layer.part.meshes.some(mesh => mesh.materialIndex === layer.index)).map(async layer => {
+        const key = skinKey(layer.material), base = textureEdit(layer.material);
+        const png = base?.png || layer.material.image;
+        if (!png) throw new Error(`${sharedComponentName(layer.part)} has no decoded image to preserve.`);
+        const image = new Image(); image.src = png; await image.decode();
+        return {layer, key, base:{...base, key, png, image, partPath:layer.part.path,
+          vtfPath:layer.material.vtfPath, vmtPath:layer.material.vmtPath, vmtText:base?.vmtText ?? layer.material.vmtText}};
+      }));
+      if (scope !== componentSelectionSerial || serial !== selectionSerial || loadout !== loadoutSerial) throw new Error('Component changed while preparing the edit. Import again.');
+      for (const {layer, key, base} of prepared) {
+        if (!edits.has(key)) edits.set(key, base);
+        if (!componentEdits.has(uvLayerKey(layer))) componentEdits.set(uvLayerKey(layer), {
+          ...edits.get(key), partPath:layer.part.path, materialIndex:layer.index,
+        });
+      }
+      const layer = layers[0];
+      componentEdits.set(uvLayerKey(layer), {...componentEdits.get(uvLayerKey(layer)), png:dataUrl, image:img,
+        variantId:typeof loaded !== 'string' ? loaded.variantId : undefined});
+    } else {
+      for (const [key, edit] of componentEdits) if (edit.vtfPath === material.vtfPath) componentEdits.delete(key);
+      for (const layer of layers) {
       const key = skinKey(layer.material);
       edits.set(key, {png: dataUrl, image: img, key, partPath: layer.part.path,
-        vmtPath: layer.material.vmtPath, vtfPath: layer.material.vtfPath, vmtText: layer.material.vmtText});
+        vmtPath: layer.material.vmtPath, vtfPath: layer.material.vtfPath,
+        vmtText: typeof loaded !== 'string' && loaded.original ? layer.material.vmtText
+          : key === selectedKey && vmtText ? vmtText : edits.get(key)?.vmtText ?? layer.material.vmtText,
+        variantId: key === selectedKey && typeof loaded !== 'string' ? loaded.variantId : undefined});
+      }
     }
     if (!draftSession) draftSession = {id: null, name: `${weaponData()?.name || attachmentName(model)} draft`, status: ''};
-    for (const object of group.children.filter(item =>
-      textureKey(assembly.get(item.userData.partPath).materials[item.userData.materialIndex]) === textureKey(material))) {
-      object.material.map?.dispose();
-      const texture = configureSourceTexture(new THREE.TextureLoader().load(dataUrl));
-      object.material.map = texture; object.material.needsUpdate = true;
-    }
+    renderAssembly();
     if (activePartPath === partPath && skinKey(activeMaterial()) === selectedKey) { importedPng = dataUrl; importedImage = img; }
+    overviewKey = '';
     renderMaterials();
     await saveDraft();
-  } catch (error) { toast(String(error), true); }
+    return true;
+  } catch (error) { toast(String(error), true); return false; }
 }
 $('png-input').addEventListener('change', async event => {
-  const input = event.target, file = input.files[0]; if (!file) return;
+  const input = event.target, files = [...input.files]; if (!files.length) return;
   await importTexture(async () => {
+    const materials = files.filter(file => /\.vmt$/i.test(file.name)), images = files.filter(file => /\.(png|dds|vtf)$/i.test(file.name));
+    if (materials.length > 1 || images.length !== 1 || files.length !== materials.length + images.length) {
+      throw new Error('Select one PNG, DDS or VTF, optionally with its VMT. To import a VMT, select its matching VTF as well.');
+    }
+    const file = images[0];
+    if (files.some(file => file.size > 96 * 1024 * 1024)) throw new Error('Texture files must be at most 96 MiB.');
+    const vmtText = materials.length ? await materials[0].text() : null;
+    if (vmtText) {
+      if (materials[0].size > 128 * 1024) throw new Error('VMT files must be at most 128 KiB.');
+      const reference = vmtValue(vmtText, 'basetexture')?.replaceAll('\\', '/').split('/').pop()?.replace(/\.vtf$/i, '').toLowerCase();
+      if (!/\.vtf$/i.test(file.name) || reference !== file.name.replace(/\.vtf$/i, '').toLowerCase()) {
+        throw new Error('Select the VTF named by the VMT $basetexture so the pair can be verified.');
+      }
+    }
     const raw = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(reader.error || new Error('Could not read the image file.')); reader.readAsDataURL(file); });
-    return file.name.toLowerCase().endsWith('.dds') ? invoke('import_image', {dataBase64: raw}) : raw;
+    const png = /\.(dds|vtf)$/i.test(file.name) ? await invoke('import_image', {dataBase64: raw}) : raw;
+    return {png, vmtText};
   });
   input.value = '';
 });
@@ -1310,6 +1870,12 @@ function applyAlphaChoices(choices) {
 }
 async function installEditedTextures(textures) {
   if (!textures.length) throw new Error('No supported edited textures to install.');
+  if (componentEdits.size) {
+    const paths = new Set(textures.map(texture => texture.vtfPath));
+    await saveDraft();
+    const output = await invoke('prepare_draft_output', {id:draftSession.id});
+    textures = output.textures.filter(texture => paths.has(texture.vtfPath) && supportedMaterial(texture, texture.partPath));
+  }
   const choices = await alphaInstallChoices(textures);
   if (!choices) return;
   await saveDraft();
@@ -1325,7 +1891,7 @@ $('export-vtf').addEventListener('click', () => runSkinInstall(async () => {
   const skins = new Map();
   for (const {part, material} of activeTextureLayers()) {
     if (supportedMaterial(material, part.path)) skins.set(skinKey(material), {
-      ...currentEdit(), vtfPath: material.vtfPath, vmtPath: material.vmtPath, vmtText: material.vmtText,
+      ...currentEdit(), vtfPath: material.vtfPath, vmtPath: material.vmtPath, vmtText: edits.get(skinKey(material))?.vmtText ?? material.vmtText,
     });
   }
   await installEditedTextures([...skins.values()]);
@@ -1335,7 +1901,7 @@ $('install-all').addEventListener('click', () => runSkinInstall(async () => {
   for (const part of assembly.values()) for (const material of part.materials) {
     const edit = textureEdit(material);
     if (edit && supportedMaterial(material, part.path)) byMaterial.set(skinKey(material), {
-      ...edit, vtfPath: material.vtfPath, vmtPath: material.vmtPath, vmtText: material.vmtText,
+      ...edit, vtfPath: material.vtfPath, vmtPath: material.vmtPath, vmtText: edits.get(skinKey(material))?.vmtText ?? material.vmtText,
     });
   }
   await installEditedTextures([...byMaterial.values()]);
@@ -1368,6 +1934,8 @@ async function scan(folder) {
     partCache.clear(); thumbnailCache.clear();
     models = result.models; customSkins = result.customSkins; contentScanned = true; installAvailable = result.hasInstallRoot; localStorage.setItem('contentFolder', folder); $('source-label').textContent = result.root;
     drafts = await invoke('list_drafts');
+    try { await refreshTextureVariants(); }
+    catch (error) { toast(`Texture library could not be refreshed: ${error}`, true); }
     document.querySelector('.source-dot').classList.add('ready');
     scanSummary = `${result.archiveCount} GMAs indexed · ${result.modelCount.toLocaleString()} PERPHEADS models${result.hasInstallRoot ? '' : ' · choose GMod on export'}`;
     renderList();

@@ -54,10 +54,13 @@ export function steamProfile(xml, steamId) {
   if (field('steamID64') !== steamId) throw new Error('Steam profile identity mismatch');
   const name = field('steamID').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 100);
   const avatar = field('avatarMedium');
-  if (!name || !/^https:\/\/avatars(?:\.(?:akamai|fastly))?\.steamstatic\.com\/[a-f0-9]+(?:_medium)?\.jpg$/.test(avatar)) {
-    throw new Error('Steam profile metadata unavailable');
+  if (!name || !/^https:\/\/avatars(?:\.(?:akamai|fastly|cloudflare))?\.steamstatic\.com\/[a-f0-9]+(?:_medium)?\.jpg$/.test(avatar)) {
+    let host = 'invalid URL';
+    try { host = new URL(avatar).hostname.replace(/[^a-z0-9.-]/g, '').slice(0, 100); } catch { /* Report malformed profile data below. */ }
+    throw new Error(`Steam profile metadata unavailable (name ${name ? 'present' : 'missing'}, avatar host ${host})`);
   }
-  return {name, avatar};
+  // Use Steam's canonical avatar host so released clients can display every CDN variant.
+  return {name, avatar:avatar.replace('https://avatars.cloudflare.steamstatic.com/', 'https://avatars.steamstatic.com/')};
 }
 async function profile(env, steamId) {
   let entry = await statement(env, 'SELECT name,avatar,expires FROM profiles WHERE steam_id=?', steamId).first();
@@ -66,16 +69,18 @@ async function profile(env, steamId) {
       const response = await fetch(`https://steamcommunity.com/profiles/${steamId}/?xml=1`, {
         redirect:'manual', signal:AbortSignal.timeout(10000)
       });
-      if (!response.ok) throw new Error('Steam profile request failed');
+      if (!response.ok) throw new Error(`Steam profile request failed (HTTP ${response.status})`);
       entry = steamProfile(new TextDecoder().decode(await boundedBytes(response.body, 128 * 1024)), steamId);
       await statement(env, `INSERT INTO profiles(steam_id,name,avatar,expires) VALUES (?,?,?,?)
         ON CONFLICT(steam_id) DO UPDATE SET name=excluded.name,avatar=excluded.avatar,expires=excluded.expires`,
         steamId, entry.name, entry.avatar, now() + 3600).run();
     } catch (error) {
-      console.error('Steam profile refresh failed', {type:error?.name || 'UnknownError'});
+      const detail = /^Steam profile (request failed \(HTTP \d{3}\)|identity mismatch|metadata unavailable \(name (present|missing), avatar host [a-z0-9 .-]{0,100}\))$/.test(error?.message || '')
+        ? error.message : 'Steam profile request timed out or returned unreadable data';
+      console.error('Steam profile refresh failed', {type:error?.name || 'UnknownError', detail});
       await statement(env, `INSERT INTO profiles(steam_id,name,avatar,expires) VALUES (?,NULL,NULL,?)
         ON CONFLICT(steam_id) DO UPDATE SET expires=excluded.expires`, steamId, now() + 300).run();
-      return {name:entry?.name || null, avatar:entry?.avatar || null, profileError:'Steam profile details could not be refreshed. Showing cached details or SteamID.'};
+      return {name:entry?.name || null, avatar:entry?.avatar || null, profileError:`${detail}. Showing cached details or SteamID.`};
     }
   }
   return {name:entry.name, avatar:entry.avatar,

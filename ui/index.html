@@ -19,11 +19,13 @@
     <main class="layout">
       <aside class="library">
         <div class="panel-heading"><div><span class="eyebrow">CONTENT LIBRARY</span><h1 id="library-title">Models</h1></div><div class="library-heading-actions"><span id="model-count" class="count">0</span><button id="import-skin" type="button" class="import-skin hidden" title="Import a shared .phskin package">Import skin</button></div></div>
-        <div class="library-tabs"><button type="button" class="active" data-library="models">Models</button><button type="button" data-library="skins">Custom skins <span id="skin-count">0</span></button></div>
+        <div class="library-tabs"><button type="button" class="active" data-library="models">Models</button><button type="button" data-library="skins">Custom skins <span id="skin-count">0</span></button><button type="button" data-library="textures">Textures <span id="texture-count">0</span></button></div>
+        <button id="library-import-texture" type="button" class="button secondary texture-library-import hidden">Import VMT / VTF or image</button>
         <label class="search"><span>⌕</span><input id="search" placeholder="Search model paths" autocomplete="off"></label>
         <div id="compatibility-filter" class="compatibility-filter" role="group" aria-label="Model compatibility"><button type="button" class="active" data-compatibility="compatible" aria-pressed="true">Compatible</button><button type="button" data-compatibility="all" aria-pressed="false">All models</button></div>
         <div id="category-filters" class="category-filters"></div>
         <div id="scan-info" class="scan-info">Choose Garry's Mod to index installed addons and Workshop content.</div>
+        <details id="texture-library-warnings" class="texture-library-warnings hidden"><summary id="texture-warning-summary"></summary><pre id="texture-warning-detail"></pre></details>
         <div id="model-list" class="model-list"></div>
       </aside>
       <section class="workspace">
@@ -35,18 +37,38 @@
         <div id="draft-actions" class="draft-actions hidden" aria-label="Draft actions">
           <button id="publish-draft" class="button secondary" type="button">Publish</button>
           <button id="export-draft" class="button secondary" type="button">Export skin</button>
+          <button id="export-draft-textures" class="button secondary" type="button">Export draft textures to library</button>
           <button id="install-draft" class="button secondary" type="button">Install</button>
           <button id="uninstall-draft" class="button secondary" type="button">Uninstall</button>
           <button id="delete-draft" class="button danger" type="button">Delete skin</button>
         </div>
-        <div class="viewport-wrap"><canvas id="viewport"></canvas><div class="view-controls" aria-label="Model views"><button type="button" data-view="default">Reset</button><button type="button" data-view="front">Front</button><button type="button" data-view="side">Side</button><button type="button" data-view="top">Top</button></div><div class="viewport-hint">Left click: select texture · Hold right click: rotate · Shift + right drag: roll · Scroll: zoom</div><div id="viewport-empty" class="viewport-empty"><span class="empty-cube">⬡</span><strong>Choose a model</strong><span>Its rendered mesh will appear here.</span></div></div>
+        <div class="viewport-wrap"><canvas id="viewport"></canvas><div class="view-controls" aria-label="Model views"><button type="button" data-view="default">Reset</button><button type="button" data-view="front">Front</button><button type="button" data-view="side">Side</button><button type="button" data-view="top">Top</button></div><div class="viewport-hint">Click: shared texture · Double-click: edit component · Right drag: rotate · Shift + right drag: roll · Scroll: zoom</div><div id="viewport-empty" class="viewport-empty"><span class="empty-cube">⬡</span><strong>Choose a model</strong><span>Its rendered mesh will appear here.</span></div></div>
         <div class="model-meta"><span>GMA / SOURCE</span><code id="model-origin">—</code><button id="copy-path" class="text-button" disabled>Copy path</button></div>
         <div id="related-models" class="related-models hidden"><div class="related-heading"><span>ATTACHMENT SLOTS</span></div><div id="related-list"></div><small id="attachment-guidance"></small></div>
       </section>
       <aside class="inspector">
-        <div class="panel-heading"><div><span class="eyebrow">TEXTURE WORKSPACE</span><h2>Selected texture</h2></div></div>
-        <label class="texture-picker">Click a part in the 3D view, or choose a texture<select id="texture-select" aria-label="Selected texture"></select></label>
-        <div id="materials" class="materials"><div class="quiet">Select a model to inspect its materials.</div></div>
+        <div class="panel-heading"><div><span class="eyebrow">TEXTURE WORKSPACE</span><h2 id="inspector-title">Components</h2></div></div>
+        <section id="component-scope" class="component-scope hidden" aria-label="Selected component">
+          <img id="component-preview" alt="The coloured geometry is selected">
+          <strong id="component-name"></strong>
+          <p id="component-note" class="note"></p>
+        </section>
+        <section id="component-overview" class="component-overview hidden">
+          <section id="shared-texture-overview" class="hidden">
+            <h3>Shared textures</h3>
+            <p class="note">Edit a shared atlas used by multiple components.</p>
+            <div id="shared-texture-cards"></div>
+          </section>
+          <h3>Components</h3>
+          <p class="note">Choose a component below, or double-click it in the 3D view, to edit its texture independently.</p>
+          <div id="component-cards"></div>
+        </section>
+        <div id="texture-editor" class="hidden">
+        <button id="show-component-overview" type="button" class="button secondary inspector-back">All components</button>
+        <div id="texture-variants" class="texture-variants hidden">
+          <label class="texture-picker">Skin variant<select id="variant-select" aria-label="Skin variant"></select></label>
+          <button id="save-texture-variant" type="button" class="button secondary wide">Save current variant</button>
+        </div>
         <section id="texture-tools" class="texture-tools hidden">
           <div class="tool-title"><div><span class="eyebrow">ACTIVE TEXTURE</span><h3 id="material-name">—</h3></div><span id="texture-size" class="tag">—</span></div>
           <div class="texture-stage"><canvas id="texture-canvas"></canvas></div>
@@ -55,7 +77,7 @@
           <div id="uv-layers" class="uv-layers" aria-label="Texture UV overlays"></div>
           <div class="button-row"><button id="export-image" class="button secondary">Export texture</button><button id="download-overlay" class="button secondary">Export UV overlay</button></div>
           <div class="button-row clipboard-buttons"><button id="copy-png" class="button secondary">Copy PNG to clipboard</button><button id="copy-overlay" class="button secondary">Copy UV overlay to clipboard</button></div>
-          <label class="button primary upload wide">Import edited PNG or DDS<input type="file" id="png-input" accept="image/png,image/vnd-ms.dds,.dds" hidden></label>
+          <label class="button primary upload wide">Import VMT / VTF, PNG or DDS<input type="file" id="png-input" accept="image/png,image/vnd-ms.dds,.dds,.vtf,.vmt" multiple hidden></label>
           <button id="import-clipboard" class="button secondary wide">Import from clipboard</button>
           <p id="import-note" class="note">Import a PNG with the same dimensions to preview it on the model. First-person skins install using PERPHEADS' phcustomtextures method.</p>
           <button id="export-vtf" class="button primary wide" disabled>Install custom skin</button>
@@ -65,11 +87,37 @@
           <div class="file-detail"><span>VTF</span><code id="vtf-path">—</code></div>
           <div class="file-detail"><span>VTF SOURCE</span><code id="vtf-origin">—</code></div>
           <details><summary>View VMT</summary><pre id="vmt-text"></pre></details>
-          <details><summary>View mesh UV coordinates</summary><pre id="uv-coordinates"></pre></details>
+          <details id="uv-coordinate-details"><summary>View mesh UV coordinates</summary><pre id="uv-coordinates"></pre></details>
         </section>
+        </div>
       </aside>
     </main>
     <div id="toast" class="toast hidden" role="status"></div>
+    <dialog id="resize-image-dialog" aria-labelledby="resize-image-title">
+      <form method="dialog">
+        <h2 id="resize-image-title">Resize imported image?</h2>
+        <p id="resize-image-message"></p>
+        <p class="note">Resizing stretches the image to fit the texture. It may distort the image or reduce detail.</p>
+        <div class="button-row"><button value="cancel" class="button secondary">Cancel</button><button value="resize" class="button primary">Resize and import</button></div>
+      </form>
+    </dialog>
+    <dialog id="texture-variant-dialog" aria-labelledby="texture-variant-title">
+      <form method="dialog">
+        <h2 id="texture-variant-title">Saved VMT / VTF</h2>
+        <p id="texture-variant-paths"></p>
+        <img id="texture-variant-preview" alt="Saved texture preview">
+        <details open><summary>VMT material</summary><pre id="texture-variant-vmt"></pre></details>
+        <p class="note">Applying changes the open draft only. Deleting a library entry does not remove copies in drafts or installed game files.</p>
+        <div class="button-row"><button value="cancel" class="button secondary">Close</button><button id="apply-texture-variant" value="apply" class="button primary">Use on selected texture</button></div>
+      </form>
+    </dialog>
+    <dialog id="save-variant-dialog" aria-labelledby="save-variant-title">
+      <form method="dialog">
+        <h2 id="save-variant-title">Save VMT / VTF variant</h2>
+        <label class="export-format">Variant name<input id="variant-name" required maxlength="100"></label>
+        <div class="button-row"><button value="cancel" formnovalidate class="button secondary">Cancel</button><button value="save" class="button primary">Save variant</button></div>
+      </form>
+    </dialog>
     <dialog id="workshop-dialog" aria-label="Skin Workshop">
       <div class="workshop-navigation"><button id="close-workshop" type="button" class="button secondary">Back to editor</button></div>
       <iframe id="workshop-frame" title="Skin Workshop"></iframe>
@@ -79,6 +127,23 @@
         <h2 id="export-dialog-title">Export texture</h2>
         <label class="export-format">Image format<select id="export-format"><option value="png">PNG image (.png)</option><option value="dds">DDS image (.dds)</option></select></label>
         <div class="button-row"><button value="cancel" class="button secondary">Cancel</button><button value="export" class="button primary">Choose save location</button></div>
+      </form>
+    </dialog>
+    <dialog id="rename-variant-dialog" aria-labelledby="rename-variant-title">
+      <form method="dialog">
+        <h2 id="rename-variant-title">Rename saved texture</h2>
+        <label class="export-format">Name<input id="rename-variant-name" type="text" maxlength="200" required></label>
+        <p>Only the library label changes. Material paths, texture pixels, drafts and installed files stay unchanged.</p>
+        <div class="button-row"><button value="cancel" class="button secondary" formnovalidate>Cancel</button><button value="rename" class="button primary">Rename</button></div>
+      </form>
+    </dialog>
+    <dialog id="installed-draft-dialog" aria-labelledby="installed-draft-title">
+      <form method="dialog">
+        <h2 id="installed-draft-title">Open installed skin as an editable draft</h2>
+        <p>Choose the model that uses this material. Only installed textures belonging to that model are copied. Original attachment choices are not recorded; attachments will use game defaults.</p>
+        <label class="export-format">Matching model<select id="installed-draft-model" required></select></label>
+        <p>A local editable draft will be created. Installed game files are not changed.</p>
+        <div class="button-row"><button value="cancel" class="button secondary">Cancel</button><button value="open" class="button primary">Open as editable draft</button></div>
       </form>
     </dialog>
     <dialog id="alpha-dialog" aria-labelledby="alpha-dialog-title">

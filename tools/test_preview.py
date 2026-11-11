@@ -52,20 +52,68 @@ window.previewTest = {
   THREE, createSourceMaterial, makeMaterial, makeThumbnail, resolveLoadout, slotChoices,
   supportedMaterial,
   setSlotAttachment, setView, modelCategory, renderList, openDraft, saveDraft, stageWorkshopDraft,
+  applyTextureVariant, applyComponentVariant, refreshSkins,
+  previewRenderCount:()=>renderer.info.render.frame,
+  holdTextureRedraws() {
+    const original=THREE.TextureLoader.prototype.load;
+    const callbacks=[];
+    THREE.TextureLoader.prototype.load=function(url,onLoad,...rest) {
+      return original.call(this,url,texture=>callbacks.push(()=>onLoad?.(texture)),...rest);
+    };
+    window.releaseTextureRedraws=()=>{
+      THREE.TextureLoader.prototype.load=original;
+      callbacks.forEach(callback=>callback());
+    };
+    window.pendingTextureRedraws=()=>callbacks.length;
+  },
+  sameDraftPreview,
+  draftPreviewVersion:()=>draftThumbnailVersions.get(draftSession?.id),
+  setupSharedComposition() {
+    const gun=assembly.get(model.path), stock=assembly.get('models/perpheads/weapons/attachments/stock_ak101.mdl');
+    const png=this.compositionPng('#666666','#666666');
+    const material={name:'Shared wood',vmtPath:'materials/models/weapons/v_models/test/shared.vmt',
+      vtfPath:'materials/models/weapons/v_models/test/shared.vtf',width:16,height:8,image:png,
+      vmtText:'VertexLitGeneric\\n{\\n$basetexture "models/weapons/v_models/test/shared"\\n$phong 1\\n}'};
+    gun.materials[0]={...material};stock.materials[0]={...material};
+    window.draftMock.componentFixture={paths:[gun.path,stock.path],material};
+    activePartPath=gun.path;materialIndex=0;
+    renderAssembly();renderMaterials();
+    return {gun:gun.path,stock:stock.path,material};
+  },
+  compositionPng(left,right) {
+    const canvas=document.createElement('canvas');canvas.width=16;canvas.height=8;
+    const context=canvas.getContext('2d');context.fillStyle=left;context.fillRect(0,0,8,8);
+    context.fillStyle=right;context.fillRect(8,0,8,8);return canvas.toDataURL();
+  },
+  variantPng(color) {
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 4;
+    const context = canvas.getContext('2d'); context.fillStyle = color; context.fillRect(0,0,4,4);
+    return canvas.toDataURL();
+  },
+  setupVariantFixture() {
+    for (const part of assembly.values()) for (const [index, material] of part.materials.entries()) {
+      const path = 'materials/models/weapons/v_models/variants/' + part.path.split('/').pop().replace('.mdl','') + index;
+      Object.assign(material,{vmtPath:path+'.vmt',vtfPath:path+'.vtf',width:4,height:4,
+        vmtText:'VertexLitGeneric\\n{\\n$basetexture "'+path.replace('materials/','')+'"\\n}',
+        image:this.variantPng('#666666')});
+    }
+    renderAssembly(); renderMaterials();
+  },
+  variantEdits() { return [...edits.values()].map(({key,png,vmtText}) => ({key,png,vmtText})); },
   draftState() { return {id: draftSession?.id, name: draftSession?.name, status: draftSession?.status,
     selections: Object.fromEntries(slotSelections), edits: [...edits].map(([key, edit]) => ({key, png: edit.png, partPath: edit.partPath}))}; },
   async selectPart(path) {
-    activePartPath = path; materialIndex = 0; renderMaterials();
+    activePartPath = path; materialIndex = 0; textureSelected=true;componentMode=false;componentSelectionSerial++;renderMaterials();
   },
   selectTexture(key) {
     const layer = textureGroups().find(layers => textureKey(layers[0].material) === key)?.[0];
     if (!layer) throw Error('Texture not found: ' + key);
     selectTextureLayer(layer);
   },
-  rotation() { return group.quaternion.toArray(); },
-  textureOptionForPart(path) {
-    return String(textureGroups().findIndex(layers => layers[0].part.path === path));
+  selectActiveShared() {
+    selectTextureLayer({part:activePart(), material:activeMaterial(), index:materialIndex});
   },
+  rotation() { return group.quaternion.toArray(); },
   surfacePoint(path) {
     camera.position.set(0, 0, distance); camera.lookAt(0,0,0);
     camera.updateMatrixWorld(); group.updateMatrixWorld(true);
@@ -139,6 +187,12 @@ window.previewTest = {
     ).map(path => ({path, compatible: true}));
     contentScanned = true;
     await selectModel({path});
+    textureSelected=true;renderMaterials();
+  },
+  showComponentOverview,
+  componentState:()=>({mode:componentMode,selected:textureSelected,edits:[...componentEdits.values()].map(({partPath,materialIndex,png})=>({partPath,materialIndex,png}))}),
+  editComponent(path,index=0) {
+    const part=assembly.get(path);selectTextureLayer({part,index,material:part.materials[index]},true);
   },
   hasPart(path) { return assembly.has(path); },
   hasMagazine() { return [...assembly.keys()].some(path => path.includes('/magazines/')); },
@@ -344,10 +398,64 @@ with sync_playwright() as playwright:
             failSave: false, installed: new Set(), calls: [], exports: [], copies: [], failCopy: false,
             clipboardImage: null, deferClipboard: false, imageExports: [], cancelImageSave: false,
             updateChecks: 0, updateAvailable: null, failUpdateCheck: false,
-            saved: new Map(Object.entries(JSON.parse(localStorage.getItem('mockDrafts') || '{}')))
+            saved: new Map(Object.entries(JSON.parse(localStorage.getItem('mockDrafts') || '{}'))),
+            variants: new Map(Object.entries(JSON.parse(localStorage.getItem('mockVariants') || '{}')))
           };
           window.__TAURI__ = {core: {invoke: async (command, args) => {
             const mock = window.draftMock; mock.calls.push(command);
+            if (command === 'combine_shared_texture') {
+              mock.combineArgs=args;
+              if (mock.failCombine) throw Error('Simulated UV inspection failure');
+              if (mock.deferCombine) return new Promise(resolve=>{mock.resolveCombine=resolve;});
+              return structuredClone(mock.combineResult);
+            }
+            if (command === 'list_texture_variants') {
+              if (mock.failVariantList) throw Error('Simulated texture-library read failure');
+              return {variants:[...mock.variants.values()],warnings:mock.variantWarnings || []};
+            }
+            if (command === 'load_texture_variant') {
+              const variant = mock.variants.get(args.id);
+              if (!variant) throw Error('Texture variant no longer exists');
+              return structuredClone(variant);
+            }
+            if (command === 'rename_texture_variant') {
+              if (mock.failVariantRename) throw Error('Simulated texture rename failure');
+              const variant=mock.variants.get(args.id), name=args.name.trim();
+              if(!variant) throw Error('Texture variant no longer exists');
+              if(!name || name.length>200) throw Error('Texture name must contain 1-200 printable characters');
+              variant.name=name;
+              localStorage.setItem('mockVariants',JSON.stringify(Object.fromEntries(mock.variants)));
+              return structuredClone(variant);
+            }
+            if (command === 'save_texture_variant') {
+              if (mock.failVariantSave) throw Error('Simulated texture-library disk failure');
+              const texture = args.texture;
+              const existing = [...mock.variants.values()].find(item => item.png === texture.png
+                && item.vmtPath === texture.vmtPath && item.vtfPath === texture.vtfPath && item.vmtText === texture.vmtText);
+              if (existing) {
+                existing.name = texture.name;
+                localStorage.setItem('mockVariants', JSON.stringify(Object.fromEntries(mock.variants)));
+                return existing;
+              }
+              const image = new Image(); image.src = texture.png; await image.decode();
+              const canvas = document.createElement('canvas'); canvas.width=image.width; canvas.height=image.height;
+              const context=canvas.getContext('2d'); context.drawImage(image,0,0);
+              const pixels=context.getImageData(0,0,image.width,image.height);
+              let hasAlpha=false;
+              for(let i=3;i<pixels.data.length;i+=4){if(pixels.data[i]<255)hasAlpha=true;pixels.data[i]=255;}
+              context.putImageData(pixels,0,0);
+              const next = Math.max(0, ...[...mock.variants.keys()].map(id => Number(id.split('-').at(-1)))) + 1;
+              const variant = {...texture,id:'variant-' + next,
+                width:image.width,height:image.height,preview:canvas.toDataURL(),hasAlpha};
+              mock.variants.set(variant.id,variant);
+              localStorage.setItem('mockVariants', JSON.stringify(Object.fromEntries(mock.variants)));
+              return structuredClone(variant);
+            }
+            if (command === 'delete_texture_variant') {
+              mock.variants.delete(args.id);
+              localStorage.setItem('mockVariants', JSON.stringify(Object.fromEntries(mock.variants)));
+              return;
+            }
             if (command === 'open_workshop') return;
             if (command === 'workshop_stage') { mock.stagedWorkshop = args; return; }
             if (command === 'workshop_list') return {skins:[], next:null};
@@ -365,6 +473,10 @@ with sync_playwright() as playwright:
               if (!mock.clipboardImage) throw Error('Clipboard contains no image pixels');
               return mock.clipboardImage;
             }
+            if (command === 'import_image') {
+              if (!mock.decodedImage) throw Error('Unsupported or damaged texture');
+              return mock.decodedImage;
+            }
             if (command === 'save_png' || command === 'save_dds') {
               mock.imageExports.push({command, ...args});
               return mock.cancelImageSave ? null : 'texture.' + (command === 'save_dds' ? 'dds' : 'png');
@@ -377,6 +489,16 @@ with sync_playwright() as playwright:
             if (command === 'update_log') return [{tag_name:'v0.2.0',name:'Texture Helper 0.2.0',body:'Release notes <script>not executable</script>'}];
             if (command === 'install_update') throw Error('Simulated installer failure');
             if (command === 'list_custom_skins') return mock.customInventory || [];
+            if (command === 'installed_skin_models') return mock.matchingModels || [];
+            if (command === 'edit_installed_skin') {
+              if (mock.failInstalledImport) throw Error('Installed texture could not be decoded');
+              mock.importedModel = args.modelPath;
+              const existing = mock.installedImport;
+              const draft = {...existing,id:'installed-edit-copy',modelPath:args.modelPath,archivedFiles:[]};
+              mock.saved.set(draft.id,draft);
+              mock.installed.add(draft.id);
+              return draft;
+            }
             if (command === 'list_drafts') return [...mock.saved.values()].map(draft => ({
               id: draft.id, name: draft.name, modelPath: draft.modelPath, textureCount: draft.textures.length,
               installedCount: mock.installed.has(draft.id) ? draft.textures.length : 0,
@@ -401,13 +523,36 @@ with sync_playwright() as playwright:
             if (command === 'save_draft') {
               if (mock.failSave) throw Error('Simulated disk failure');
               const draft = structuredClone(args.draft);
+              if (draft.componentTextures?.length) {
+                draft.componentError = mock.componentConflict ? '7 UV pixels have conflicting component colours or alpha' : null;
+                if (!draft.componentError && mock.combinedPng) for (const texture of draft.textures) texture.png=mock.combinedPng;
+              }
               draft.id ||= 'draft-' + (mock.saved.size + 1);
               mock.saved.set(draft.id, draft);
               localStorage.setItem('mockDrafts', JSON.stringify(Object.fromEntries(mock.saved)));
               return draft;
             }
-            if (command === 'load_draft') return structuredClone(mock.saved.get(args.id));
+            if (command === 'prepare_draft_output') {
+              const draft=structuredClone(mock.saved.get(args.id));
+              if(mock.componentConflict) throw Error('7 UV pixels have conflicting component colours or alpha');
+              draft.componentTextures=[];delete draft.componentError;
+              return draft;
+            }
+            if (command === 'load_draft') {
+              const draft=structuredClone(mock.saved.get(args.id));
+              draft.variantIds=Object.fromEntries(draft.textures.flatMap(texture=>{
+                const match=[...mock.variants.values()].find(variant=>variant.png===texture.png
+                  &&variant.vmtPath===texture.vmtPath&&variant.vtfPath===texture.vtfPath&&variant.vmtText===texture.vmtText);
+                return match?[[texture.key,match.id]]:[];
+              }));
+              draft.componentVariantIds=Object.fromEntries((draft.componentTextures||[]).flatMap(texture=>{
+                const match=[...mock.variants.values()].find(variant=>variant.png===texture.png);
+                return match?[[`${texture.partPath}:${texture.materialIndex}`,match.id]]:[];
+              }));
+              return draft;
+            }
             if (command === 'delete_draft') {
+              if (mock.deferDelete) await new Promise(resolve=>{mock.resolveDelete=resolve;});
               mock.saved.delete(args.id);
               mock.installed.delete(args.id);
               localStorage.setItem('mockDrafts', JSON.stringify(Object.fromEntries(mock.saved)));
@@ -441,12 +586,31 @@ with sync_playwright() as playwright:
             }
             if (command !== 'open_model') throw Error('Unexpected command: ' + command);
             const sequence = args.sequence === undefined ? '' : '?sequence=' + args.sequence;
-            return (await fetch('/model/' + args.path + sequence)).json();
+            const detail=await (await fetch('/model/' + args.path + sequence)).json();
+            if(mock.componentFixture?.paths.includes(args.path)) detail.materials[0]={...mock.componentFixture.material};
+            return detail;
           }}};
         """)
         page.goto(ORIGIN)
         page.wait_for_function("window.previewTest !== undefined")
         page.wait_for_function("draftMock.updateChecks === 1")
+        page.evaluate("previewTest.refreshSkins()")
+        page.evaluate("window.dispatchEvent(new Event('focus'))")
+        page.wait_for_timeout(100)
+        assert not page.locator("#toast").inner_text().startswith("Saved skins could not"), "Refresh failed without a selected model"
+        assert not page.locator("#toast").inner_text().startswith("Saved skins could not be loaded"), "Startup refresh failed"
+        page.evaluate("draftMock.variantWarnings=['Installed test: VTF missing'];")
+        page.evaluate("previewTest.refreshSkins()")
+        page.locator('[data-library="textures"]').click()
+        assert page.locator("#texture-library-warnings").is_visible()
+        assert "VTF missing" in page.locator("#texture-warning-detail").text_content()
+        page.evaluate("draftMock.failVariantList=true")
+        page.evaluate("previewTest.refreshSkins()")
+        assert "Texture library could not be refreshed" in page.locator("#toast").inner_text()
+        page.evaluate("draftMock.failVariantList=false;draftMock.variantWarnings=[]")
+        page.evaluate("previewTest.refreshSkins()")
+        page.locator('[data-library="models"]').click()
+        print("PASS: startup/focus refresh without a selected model, visible pairing warnings and independent draft refresh")
         assert page.locator("#update-status").inner_text() == "Up to date"
         assert page.locator("#app-version").inner_text() == "v0.2.0"
         logo = page.locator(".brand").bounding_box()
@@ -496,13 +660,36 @@ with sync_playwright() as playwright:
         print("PASS: weapons and every Lua-defined attachment have separate library categories")
 
         page.evaluate("previewTest.open('models/perpheads/weapons/c_ak101.mdl')")
+        page.wait_for_timeout(100)
+        idle_frames = page.evaluate("previewTest.previewRenderCount()")
+        page.wait_for_timeout(100)
+        assert page.evaluate("previewTest.previewRenderCount()") == idle_frames, "The model preview rendered continuously while idle"
+        page.locator("#viewport").evaluate("canvas=>canvas.dispatchEvent(new WheelEvent('wheel',{deltaY:-1,cancelable:true}))")
+        page.wait_for_function("previewTest.previewRenderCount() > " + str(idle_frames))
+        print("PASS: model preview renders on changes, not continuously while idle")
         page.locator("#show-uv").uncheck()
         original = page.evaluate("previewTest.setupMaskedTexture()")
+        page.evaluate("previewTest.holdTextureRedraws();previewTest.rebuild()")
+        page.wait_for_function("window.pendingTextureRedraws()>0")
+        page.wait_for_timeout(100)
+        before_texture_ready = page.evaluate("previewTest.previewRenderCount()")
+        page.evaluate("window.releaseTextureRedraws()")
+        page.wait_for_function("count=>previewTest.previewRenderCount()>count",arg=before_texture_ready)
+        print("PASS: delayed model textures trigger redraw without moving the model")
         page.wait_for_function("""() => {
           const p = document.getElementById('texture-canvas').getContext('2d').getImageData(1,1,1,1).data;
           return p[0] > 190 && p[1] > 90 && p[3] === 255;
         }""")
-        assert page.locator(".material-item.active img").evaluate("image => image.naturalWidth") == 4
+        assert page.locator("#texture-size").inner_text() == "4 × 4"
+        assert page.locator("#materials, #component-edit-controls").count() == 0
+        assert page.locator("#texture-variants").locator("button").count() == 1
+        assert page.locator("#texture-variants small").count() == 0
+        assert page.locator("#uv-layers").is_hidden()
+        assert page.locator("#uv-layers input").count() == 0
+        assert page.locator("#show-uv").is_visible()
+        page.evaluate("previewTest.showComponentOverview()")
+        assert page.locator("#shared-texture-overview").is_hidden(), "Single-owner textures appeared as shared cards"
+        page.evaluate("previewTest.selectPart(previewTest.activePath())")
         page.locator("#show-alpha").check()
         page.wait_for_function("""() => {
           const p = document.getElementById('texture-canvas').getContext('2d').getImageData(1,1,1,1).data;
@@ -559,7 +746,11 @@ with sync_playwright() as playwright:
           draftMock.clipboardImage = canvas.toDataURL();
         }""")
         page.locator("#import-clipboard").click()
-        page.wait_for_function("document.getElementById('toast').textContent.includes('Image must be 4')")
+        page.locator("#resize-image-dialog").wait_for(state="visible")
+        assert "2 × 2" in page.locator("#resize-image-message").inner_text()
+        assert "4 × 4" in page.locator("#resize-image-message").inner_text()
+        page.locator('#resize-image-dialog button[value="cancel"]').click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('import cancelled')")
         assert page.evaluate("previewTest.draftState().edits.length") == 0
         page.locator("#show-alpha").uncheck()
         page.locator("#show-uv").check()
@@ -571,7 +762,7 @@ with sync_playwright() as playwright:
         assert page.evaluate("draftMock.saved.size") == 0
         assert page.evaluate("previewTest.highlightedMeshes().length") == 0
         before = page.evaluate("previewTest.mountedMaterials().map(material => material.uuid)")
-        page.locator(".material-item").first.click()
+        page.evaluate("previewTest.selectActiveShared()")
         highlighted = page.evaluate("previewTest.highlightedMeshes()")
         assert highlighted and all(item == {"path": "models/perpheads/weapons/c_ak101.mdl", "index": 0, "color": 0xff765c}
                                    for item in highlighted)
@@ -585,7 +776,7 @@ with sync_playwright() as playwright:
                           if name in data["weapons"]["models/perpheads/weapons/c_ak101.mdl"]["defaults"]
                           and part["model"] != other_path)
         page.evaluate("path => previewTest.selectPart(path)", other_path)
-        page.locator(".material-item").click()
+        page.evaluate("previewTest.selectActiveShared()")
         highlighted = page.evaluate("previewTest.highlightedMeshes()")
         assert highlighted and all(item["path"] != "models/perpheads/weapons/c_ak101.mdl" for item in highlighted)
         page.locator("#viewport").click(button="right")
@@ -595,11 +786,8 @@ with sync_playwright() as playwright:
         page.evaluate("previewTest.setSlotAttachment('SLOT_STOCK', 'stock_ak101')")
         if args.fixtures:
             page.evaluate("previewTest.selectTexture('materials/models/weapons/v_models/ak101/wood.vtf')")
-            natural = page.locator(".material-item[data-texture-key='materials/models/weapons/v_models/ak101/wood.vtf']")
-            assert natural.count() == 1, "Actual AK101 stock/body VTF was not grouped"
-            natural.click()
             assert len(page.evaluate("previewTest.uvLayers()")) == 2
-            assert "c ak101" in natural.inner_text() and "stock ak101" in natural.inner_text()
+            assert page.locator("#material-name").inner_text() == "wood.vtf"
             point = page.evaluate("previewTest.surfacePoint('models/perpheads/weapons/attachments/stock_ak101.mdl')")
             page.mouse.click(point["x"], point["y"])
             assert page.evaluate("previewTest.activePath()") == "models/perpheads/weapons/attachments/stock_ak101.mdl"
@@ -609,11 +797,12 @@ with sync_playwright() as playwright:
             }
             print("PASS: actual mounted AK101 stock click opens shared wood VTF and highlights stock/body")
         page.evaluate("previewTest.setupSharedTexture()")
-        shared = page.locator(".material-item[data-texture-key='materials/models/weapons/v_models/test/shared.vtf']")
-        assert shared.count() == 1
-        shared.click()
+        page.evaluate("previewTest.selectTexture('materials/models/weapons/v_models/test/shared.vtf')")
         layers = page.evaluate("previewTest.uvLayers()")
         assert len(layers) == 2 and all(layer["triangles"] > 0 for layer in layers)
+        assert page.locator("#uv-coordinates").text_content() == "", "Closed coordinate panel formatted triangle text"
+        page.locator("#uv-coordinate-details summary").click()
+        page.wait_for_function("document.getElementById('uv-coordinates').textContent.includes('stock ak101')")
         assert page.locator("#uv-layers input").count() == 2
         for checkbox in page.locator("#uv-layers input").all():
             checkbox.uncheck()
@@ -630,8 +819,8 @@ with sync_playwright() as playwright:
         assert set(page.evaluate("previewTest.uvStrokes()")) == {"#ff765c", "#62c4ff"}
         assert len({item["path"] for item in page.evaluate("previewTest.highlightedMeshes()")}) == 2
         assert {item["color"] for item in page.evaluate("previewTest.highlightedMeshes()")} == {0xff765c, 0x62c4ff}
-        assert page.locator(".material-item").count() == 1
-        assert page.locator("#texture-select option").count() > 1
+        assert page.locator("#material-name").inner_text() == "shared.vtf"
+        assert page.locator("#texture-select").count() == 0
         page.evaluate("previewTest.setupPicking()")
         assert page.locator("#viewport").evaluate("element => getComputedStyle(element).cursor") == "default"
         stock_path = "models/perpheads/weapons/attachments/stock_ak101.mdl"
@@ -640,7 +829,7 @@ with sync_playwright() as playwright:
         page.mouse.click(point["x"], point["y"])
         assert page.evaluate("previewTest.activePath()") == stock_path
         assert len({item["path"] for item in page.evaluate("previewTest.highlightedMeshes()")}) == 2
-        assert page.locator(".material-item").count() == 1
+        assert page.locator("#material-name").inner_text() == "shared.vtf"
         assert page.evaluate("previewTest.rotation()") == rotation
         highlighted = page.evaluate("previewTest.highlightedMeshes()")
         page.mouse.move(point["x"], point["y"])
@@ -674,19 +863,18 @@ with sync_playwright() as playwright:
         page.mouse.click(point["x"], point["y"])
         assert page.evaluate("previewTest.activePath()") == "models/perpheads/weapons/c_ak101.mdl"
         assert len({item["path"] for item in page.evaluate("previewTest.highlightedMeshes()")}) == 2
-        page.locator("#texture-select").select_option(
-            page.evaluate("path => previewTest.textureOptionForPart(path)", other_path))
-        assert page.evaluate("previewTest.activePath()") == other_path
-        assert page.locator(".material-item").count() == 1
+        assert page.locator("#material-name").inner_text() == "shared.vtf"
         page.evaluate("previewTest.selectTexture('materials/models/weapons/v_models/test/shared.vtf')")
         page.evaluate("previewTest.rebuild()")
-        shared.click()
+        page.evaluate("previewTest.selectTexture('materials/models/weapons/v_models/test/shared.vtf')")
         print("PASS: nearest-mesh picking, shared VTF selection, compact fallback, inert left-drag, right rotation and Shift roll")
         page.locator("#uv-layers input").last.uncheck()
         assert set(page.evaluate("previewTest.uvStrokes()")) == {"#ff765c"}
         assert "stock ak101" not in page.locator("#uv-coordinates").inner_text()
+        page.locator("#uv-coordinate-details summary").click()
+        page.wait_for_function("document.getElementById('uv-coordinates').textContent === ''")
         page.locator("#uv-layers input").last.check()
-        page.locator("#uv-layers button").last.click()
+        page.locator("#uv-layers").get_by_role("button", name="Highlight", exact=True).last.click()
         assert all(item["path"].endswith("stock_ak101.mdl") for item in page.evaluate("previewTest.highlightedMeshes()"))
         assert {item["color"] for item in page.evaluate("previewTest.highlightedMeshes()")} == {0x62c4ff}
         page.evaluate("previewTest.rebuild()")
@@ -729,7 +917,7 @@ with sync_playwright() as playwright:
         page.wait_for_function("typeof draftMock.resolveClipboard === 'function'")
         page.evaluate("previewTest.open('models/perpheads/weapons/c_m4a1.mdl')")
         page.evaluate("png => { draftMock.deferClipboard = false; draftMock.resolveClipboard(png); }", clipboard_png)
-        page.wait_for_function("document.getElementById('toast').textContent.includes('model changed during import')")
+        page.wait_for_function("document.getElementById('toast').textContent.includes('model or component changed during import')")
         assert page.evaluate("previewTest.draftState().edits.length") == 0
         assert page.evaluate("draftMock.saved.size") == 0
         print("PASS: export format popup/cancellation, clipboard import alpha/shared drafts, dimension/no-image/race errors and narrow layout")
@@ -828,6 +1016,20 @@ with sync_playwright() as playwright:
         assert "My saved AK101" in row.inner_text()
         row.locator(".draft-thumb img").wait_for()
         assert row.locator(".draft-thumb img").evaluate("image => image.complete && image.naturalWidth > 0")
+        framing = row.locator(".draft-thumb img").evaluate("""image => {
+          const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
+          const context=canvas.getContext('2d');context.drawImage(image,0,0);
+          const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;
+          const background=[42,49,57];let minX=canvas.width,minY=canvas.height,maxX=-1,maxY=-1;
+          for(let y=0;y<canvas.height;y++)for(let x=0;x<canvas.width;x++){
+            const i=(y*canvas.width+x)*4;
+            if(Math.abs(pixels[i]-background[0])+Math.abs(pixels[i+1]-background[1])+Math.abs(pixels[i+2]-background[2])>36){
+              minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+            }
+          }
+          return {width:maxX-minX+1,height:maxY-minY+1};
+        }""")
+        assert framing["width"] >= 40 and framing["height"] >= 3, f"Draft model thumbnail is too small or poorly oriented: {framing}"
         page.evaluate("""async id => {
           const draft = draftMock.saved.get(id);
           const before = previewTest.draftState();
@@ -889,8 +1091,21 @@ with sync_playwright() as playwright:
         assert page.evaluate("draftMock.saved.size") == 1
         page.locator("#install-draft").click()
         page.wait_for_function("draftMock.installed.size === 1")
+        page.evaluate("draftMock.deferDelete=true")
         page.locator("#delete-draft").click()
+        page.wait_for_function("typeof draftMock.resolveDelete==='function'")
+        saves_before_delete = page.evaluate("draftMock.calls.filter(command=>command==='save_draft').length")
+        page.evaluate("""()=>{
+          window.saveDuringDelete=previewTest.saveDraft();
+          window.navigationAfterDelete=previewTest.open('models/perpheads/weapons/c_m4a1.mdl');
+        }""")
+        assert page.evaluate("draftMock.calls.filter(command=>command==='save_draft').length") == saves_before_delete
+        page.evaluate("draftMock.resolveDelete();draftMock.deferDelete=false")
+        page.evaluate("Promise.all([window.saveDuringDelete,window.navigationAfterDelete])")
         page.wait_for_function("draftMock.saved.size === 0")
+        assert page.locator("#model-name").inner_text() == "c_m4a1"
+        assert not page.evaluate("previewTest.draftState().id")
+        assert "Cannot leave" not in page.locator("#toast").inner_text()
         assert not page.locator("#draft-actions").is_visible()
         assert page.evaluate("draftMock.installed.size") == 0, "Whole-skin delete left installed attachment entries"
         print("PASS: autosave multiple textures, rename, slots, reopen after reload, no installation, and disk-failure retry")
@@ -1024,6 +1239,33 @@ with sync_playwright() as playwright:
         assert page.evaluate("draftMock.calls.filter(command => command === 'install_draft').length") == installs_before_share
         assert page.evaluate("previewTest.draftState().id") == package_state["id"]
         assert page.evaluate("previewTest.draftState().edits") == package_state["edits"]
+        installed_row = page.locator(".skin-item").filter(has_text="Installed only")
+        installed_row.get_by_role("button", name="Open as editable draft", exact=True).click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('No compatible model')")
+        assert not page.evaluate("draftMock.calls.includes('edit_installed_skin')")
+        page.evaluate("""() => {
+          draftMock.matchingModels=[draftMock.packageExports[0].draft.modelPath,'models/perpheads/weapons/c_ak101.mdl'];
+          draftMock.installedImport=draftMock.packageExports[0].draft;
+        }""")
+        installed_row.get_by_role("button", name="Open as editable draft", exact=True).click()
+        page.locator("#installed-draft-dialog").wait_for(state="visible")
+        assert page.locator("#installed-draft-model option").count() == 2
+        page.locator("#installed-draft-dialog button[value=cancel]").click()
+        assert not page.evaluate("draftMock.calls.includes('edit_installed_skin')")
+        page.evaluate("draftMock.failInstalledImport=true")
+        installed_row.get_by_role("button", name="Open as editable draft", exact=True).click()
+        page.locator("#installed-draft-dialog button[value=open]").click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('Installed texture could not be decoded')")
+        assert page.evaluate("previewTest.draftState().id") == package_state["id"]
+        page.evaluate("draftMock.failInstalledImport=false")
+        installed_row.get_by_role("button", name="Open as editable draft", exact=True).click()
+        page.locator("#installed-draft-dialog button[value=open]").click()
+        page.wait_for_function("previewTest.draftState().id === 'installed-edit-copy'")
+        assert page.evaluate("draftMock.importedModel") == page.evaluate("draftMock.matchingModels[0]")
+        assert page.evaluate("draftMock.calls.filter(command => command === 'install_draft').length") == installs_before_share
+        assert page.locator('button.skin-item[data-draft-id="installed-edit-copy"]').is_visible()
+        page.evaluate("previewTest.setupSharedTexture()")
+        print("PASS: installed skin editing requires matching-model confirmation, supports cancellation/errors, and never installs automatically")
         page.locator("[data-library='models']").click()
         assert page.locator("#import-skin").is_hidden()
         print("PASS: whole-skin draft/backup/installed export, import/cancel/errors, save-before-export and no automatic installation")
@@ -1055,6 +1297,7 @@ with sync_playwright() as playwright:
         print("PASS: automatic update check, logo placement, safe release log, confirmation, save-before-install and explicit failures")
 
         page.evaluate("previewTest.removeSharedOwnerEdit()")
+        page.evaluate("previewTest.selectTexture('materials/models/weapons/v_models/test/shared.vtf')")
         export_count = page.evaluate("draftMock.exports.length")
         page.locator("#install-all").click()
         page.locator("#alpha-remove").click()
@@ -1102,6 +1345,367 @@ with sync_playwright() as playwright:
         page.wait_for_function("() => !document.querySelector('#refresh-models').disabled")
         print("PASS: Refresh models rescans the selected folder without opening the folder picker")
 
+        variant_gun = next(path for path, weapon in data["weapons"].items() if "suppressor_54539" in weapon["compatible"])
+        prior_install_count = page.evaluate("draftMock.exports.length")
+        suppressor = data["attachments"]["suppressor_54539"]["model"]
+        page.evaluate("path => previewTest.open(path)", variant_gun)
+        page.evaluate("previewTest.setSlotAttachment('SLOT_SILENCER','suppressor_54539')")
+        page.evaluate("previewTest.setupVariantFixture()")
+        page.evaluate("path => previewTest.selectPart(path)", variant_gun)
+        main_png = page.evaluate("previewTest.variantPng('#44aa55')")
+        initial_variant_count = page.evaluate("draftMock.variants.size")
+        page.locator("#png-input").set_input_files({"name":"body-green.png","mimeType":"image/png","buffer":base64.b64decode(main_png.split(",")[1])})
+        page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
+        assert page.evaluate("draftMock.variants.size") == initial_variant_count, "Draft import automatically added a library variant"
+        page.locator("#save-texture-variant").click()
+        page.locator("#variant-name").fill("body-green")
+        page.locator('#save-variant-dialog button[value="save"]').click()
+        page.wait_for_function("count=>draftMock.variants.size===count+1",arg=initial_variant_count)
+        body_edit = page.evaluate("previewTest.variantEdits()")
+        page.evaluate("path => previewTest.selectPart(path)", suppressor)
+        red_png = page.evaluate("previewTest.variantPng('#cc2233')")
+        blue_png = page.evaluate("previewTest.variantPng('#2255dd')")
+        for name, image in (("suppressor-red", red_png), ("suppressor-blue", blue_png)):
+            before_count = page.evaluate("draftMock.variants.size")
+            page.locator("#png-input").set_input_files({"name":name+".png","mimeType":"image/png","buffer":base64.b64decode(image.split(",")[1])})
+            page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
+            assert page.evaluate("draftMock.variants.size") == before_count, "Draft import automatically added a library variant"
+            page.locator("#save-texture-variant").click()
+            page.locator("#variant-name").fill(name)
+            page.locator('#save-variant-dialog button[value="save"]').click()
+            page.wait_for_function("count=>draftMock.variants.size===count+1",arg=before_count)
+        red_id = page.evaluate("[...draftMock.variants.values()].find(item=>item.name==='suppressor-red').id")
+        blue_id = page.evaluate("[...draftMock.variants.values()].find(item=>item.name==='suppressor-blue').id")
+        body_variant = page.evaluate("[...draftMock.variants.values()].find(item=>item.name==='body-green').id")
+        unchanged = page.evaluate("previewTest.variantEdits()")
+        page.evaluate("id=>previewTest.applyTextureVariant(id)",body_variant)
+        assert page.evaluate("previewTest.variantEdits()") == unchanged, "An unrelated material variant was accepted"
+        assert "matching VMT / VTF" in page.locator("#toast").inner_text()
+        assert set(page.locator("#variant-select option").all_text_contents()) == {"Original / default","suppressor-red","suppressor-blue"}
+        page.locator("#variant-select").select_option(red_id)
+        page.wait_for_function("png=>previewTest.variantEdits().some(edit=>edit.png===png)",arg=red_png)
+        assert all(item in page.evaluate("previewTest.variantEdits()") for item in body_edit), "Changing suppressor changed the gun body"
+        page.locator("#variant-select").select_option("original")
+        page.wait_for_function("document.getElementById('variant-select').value==='original'")
+        assert all(item in page.evaluate("previewTest.variantEdits()") for item in body_edit)
+        page.locator("#variant-select").select_option(blue_id)
+        page.wait_for_function("png=>previewTest.variantEdits().some(edit=>edit.png===png)",arg=blue_png)
+        page.locator('[data-library="textures"]').click()
+        page.locator("#search").fill("suppressor")
+        assert page.locator(".texture-library-card").count() == 2
+        assert page.locator(".texture-library-card .model-thumb").evaluate_all("""thumbs=>thumbs.every(thumb=>{
+          const box=thumb.getBoundingClientRect(), image=thumb.querySelector('img').getBoundingClientRect();
+          return image.bottom<=box.bottom+1 && image.top>=box.top-1;
+        })"""), "Texture thumbnails overflowed into card text"
+        page.locator(f'[data-variant-id="{red_id}"] .texture-card-open').click()
+        assert page.locator("#texture-variant-dialog").is_visible()
+        assert "basetexture" in page.locator("#texture-variant-vmt").inner_text()
+        page.locator('#texture-variant-dialog button[value="cancel"]').click()
+        count = page.evaluate("draftMock.variants.size")
+        page.locator("#save-texture-variant").click()
+        page.locator('#save-variant-dialog button[value="cancel"]').click()
+        assert page.evaluate("draftMock.variants.size") == count
+        page.evaluate("draftMock.failVariantSave=true")
+        before_count = page.evaluate("draftMock.variants.size")
+        page.locator("#png-input").set_input_files({"name":"failed.png","mimeType":"image/png","buffer":base64.b64decode(red_png.split(",")[1])})
+        page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
+        assert page.evaluate("draftMock.variants.size") == before_count, "Import touched the texture library"
+        prior = page.evaluate("previewTest.variantEdits()")
+        page.locator("#save-texture-variant").click()
+        page.locator("#variant-name").fill("failed-save")
+        page.locator('#save-variant-dialog button[value="save"]').click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('texture-library disk failure')")
+        assert page.evaluate("previewTest.variantEdits()") == prior, "A failed manual library save changed the draft"
+        page.evaluate("draftMock.failVariantSave=false")
+        page.locator("#png-input").set_input_files([
+            {"name":"wrong.vmt","mimeType":"text/plain","buffer":b'UnlitGeneric\\n{\\n$basetexture "wrong"\\n}'},
+            {"name":"other.vtf","mimeType":"application/octet-stream","buffer":b"bad"},
+        ])
+        page.wait_for_function("document.getElementById('toast').textContent.includes('VTF named by the VMT')")
+        assert page.evaluate("previewTest.variantEdits()") == prior
+        vmt = 'UnlitGeneric\n{\n$basetexture "red_custom"\n$translucent 1\n}'
+        page.evaluate("png=>draftMock.decodedImage=png",red_png)
+        page.locator("#png-input").set_input_files([
+            {"name":"red.vmt","mimeType":"text/plain","buffer":vmt.encode()},
+            {"name":"red_custom.vtf","mimeType":"application/octet-stream","buffer":b"VTF mock"},
+        ])
+        page.wait_for_function("previewTest.variantEdits().some(edit=>edit.vmtText?.includes('UnlitGeneric'))")
+        page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
+        assert page.evaluate("previewTest.mountedMaterials().some(material=>material.isMeshBasicMaterial && material.transparent)"), "Saved VMT flags were not applied to preview"
+        assert all(item in page.evaluate("previewTest.variantEdits()") for item in body_edit)
+        saved_id = page.evaluate("previewTest.draftState().id")
+        assert page.evaluate("draftMock.exports.length") == prior_install_count, "Variant selection installed a skin"
+        count = page.evaluate("draftMock.variants.size")
+        for _ in range(2):
+            page.evaluate("id=>previewTest.applyTextureVariant(id)",red_id)
+            page.evaluate("previewTest.saveDraft()")
+        assert page.evaluate("draftMock.variants.size") == count, "Reusing a saved texture created another variant"
+        masked_png = page.evaluate("previewTest.uploadAlphaPng()")
+        masked_id = page.evaluate("""async ([id,png])=>{
+          const original=draftMock.variants.get(id);
+          const variant=await __TAURI__.core.invoke('save_texture_variant',{texture:{
+            name:original.name,vmtPath:original.vmtPath,vtfPath:original.vtfPath,vmtText:original.vmtText,png}});
+          await previewTest.refreshSkins();
+          return variant.id;
+        }""",[red_id,masked_png])
+        page.locator(f'[data-variant-id="{blue_id}"]').get_by_role("button",name="Delete",exact=True).click()
+        page.wait_for_function("id=>!draftMock.variants.has(id)",arg=blue_id)
+        assert page.evaluate("id=>draftMock.saved.has(id)",saved_id)
+        labels = page.locator("#variant-select option").all_text_contents()
+        assert "suppressor-red · Alpha mask" in labels and "suppressor-red · Opaque" in labels, labels
+        assert len(labels) == len(set(labels)), "Different named variants cannot share indistinguishable labels"
+        page.locator(f'[data-variant-id="{masked_id}"] .texture-card-open').click()
+        page.wait_for_function("document.getElementById('texture-variant-preview').complete")
+        assert page.locator("#texture-variant-title").inner_text() == "suppressor-red · Alpha mask"
+        assert page.locator("#texture-variant-preview").evaluate("""image=>{
+          const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
+          const context=canvas.getContext('2d');context.drawImage(image,0,0);
+          return context.getImageData(0,0,canvas.width,canvas.height).data.every((value,index)=>index%4!==3||value===255);
+        }"""), "VMT/VTF viewer used masked source alpha instead of opaque RGB preview"
+        assert page.locator(f'[data-variant-id="{masked_id}"] .model-thumb img').get_attribute("src") == page.evaluate("id=>draftMock.variants.get(id).preview",masked_id)
+        assert page.evaluate("id=>draftMock.variants.get(id).png",masked_id) == masked_png, "Preview changed source alpha"
+        page.locator('#texture-variant-dialog button[value="cancel"]').click()
+        page.reload()
+        page.wait_for_function("document.getElementById('texture-count').textContent !== '0'")
+        page.locator('[data-library="textures"]').click()
+        assert page.locator(f'[data-variant-id="{red_id}"]').count() == 1
+        assert page.locator(f'[data-variant-id="{blue_id}"]').count() == 0
+        assert page.evaluate("id=>draftMock.saved.has(id)",saved_id), "Deleting a variant removed the draft"
+        assert not page.evaluate("draftMock.calls.includes('export_textures')"), "Variant selection installed a skin"
+        print("PASS: saved VMT/VTF library, material-matched suppressor variants, default restore, unchanged gun body, raw-pair validation/shaders, errors, persistence and independent deletion")
+
+        page.evaluate("previewTest.open('models/perpheads/weapons/c_ak101.mdl')")
+        page.evaluate("previewTest.setSlotAttachment('SLOT_STOCK','stock_ak101')")
+        fixture = page.evaluate("previewTest.setupSharedComposition()")
+        red_png = page.evaluate("previewTest.compositionPng('#cc2233','#cc2233')")
+        blue_png = page.evaluate("previewTest.compositionPng('#2255dd','#2255dd')")
+        combined_png = page.evaluate("previewTest.compositionPng('#cc2233','#2255dd')")
+        source_ids = page.evaluate("""async ([material,red,blue])=>{
+          const result=[];
+          for(const [name,png] of [['Component red',red],['Component blue',blue]]) {
+            const saved=await __TAURI__.core.invoke('save_texture_variant',{texture:{
+              name,png,vmtPath:material.vmtPath,vtfPath:material.vtfPath,
+              vmtText:'UnlitGeneric\\n{\\n$basetexture "models/weapons/v_models/test/shared"\\n}'}});
+            result.push(saved.id);
+          }
+          await previewTest.refreshSkins();return result;
+        }""",[fixture["material"],red_png,blue_png])
+        page.locator("#variant-select").select_option(source_ids[1])
+        page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
+        page.evaluate("previewTest.showComponentOverview()")
+        card = page.locator(".component-card").filter(has_text="Stock — AK-101 Stock").first
+        assert card.locator("select").input_value() == source_ids[1], "Shared texture variant selection was shown as Original / default"
+        assert "Applied: Component blue" in page.locator("#shared-texture-cards").inner_text()
+        page.evaluate("path=>previewTest.editComponent(path)",fixture["gun"])
+        page.evaluate("previewTest.selectActiveShared()")
+        page.locator("#variant-select").select_option("original")
+        page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
+        page.evaluate("previewTest.showComponentOverview()")
+        before = page.evaluate("previewTest.draftState()")
+        before_installs = page.evaluate("draftMock.exports.length")
+        assert page.locator("#component-overview").is_visible()
+        assert not page.locator("#texture-editor").is_visible()
+        assert page.locator("#shared-texture-dialog").count() == 0
+        assert page.locator("#shared-texture-overview").is_visible()
+        assert page.locator(".shared-texture-card").count() == 1
+        assert page.evaluate("""()=>{
+          const shared=document.getElementById('shared-texture-overview'), components=document.getElementById('component-cards');
+          return !!(shared.compareDocumentPosition(components)&Node.DOCUMENT_POSITION_FOLLOWING);
+        }"""), "Shared textures were not above the component list"
+        page.locator(".shared-texture-card .component-card-open").click()
+        assert not page.evaluate("previewTest.componentState().mode")
+        assert len({item["path"] for item in page.evaluate("previewTest.highlightedMeshes()")}) == 2
+        assert page.locator("#component-name").inner_text().startswith("Shared texture ·")
+        page.locator("#show-component-overview").click()
+        card = page.locator(".component-card").filter(has_text="Stock — AK-101 Stock").first
+        page.wait_for_function("""[...document.querySelectorAll('.component-card img')]
+          .every(image=>image.complete && image.naturalWidth===220)""")
+        card.locator("select").select_option(source_ids[1])
+        page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
+        assert not page.evaluate("previewTest.componentState().selected || previewTest.componentState().mode"), "Changing a component dropdown opened the component editor"
+        assert page.locator("#component-overview").is_visible() and page.locator("#texture-editor").is_hidden()
+        assert next(item["png"] for item in page.evaluate("previewTest.componentState().edits") if item["partPath"]==fixture["stock"]) == blue_png
+        card.locator(".component-card-open").click()
+        assert page.locator("#component-name").inner_text() == "Stock — AK-101 Stock · Shared wood"
+        assert page.evaluate("previewTest.componentState().mode")
+        assert page.locator("#uv-layers").is_hidden()
+        assert page.locator("#uv-layers input").count() == 0
+        assert page.locator("#show-uv").is_visible()
+        assert set(page.evaluate("previewTest.uvStrokes()")) == {"#62c4ff"}, "Component UV overlay included another component"
+        page.evaluate("png=>{draftMock.combinedPng=png}",combined_png)
+        page.locator("#variant-select").select_option(source_ids[1])
+        page.wait_for_function("previewTest.componentState().edits.length===2 && previewTest.draftState().status.includes('Saved locally')")
+        components = page.evaluate("previewTest.componentState().edits")
+        assert next(item["png"] for item in components if item["partPath"]==fixture["stock"]) == blue_png
+        assert next(item["png"] for item in components if item["partPath"]==fixture["gun"]) == fixture["material"]["image"]
+        page.evaluate("path=>previewTest.editComponent(path)",fixture["gun"])
+        page.locator("#variant-select").select_option(source_ids[0])
+        page.wait_for_function("([path,png])=>previewTest.componentState().edits.some(edit=>edit.partPath===path&&edit.png===png)",arg=[fixture["gun"],red_png])
+        page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
+        state = page.evaluate("previewTest.draftState()")
+        assert all(edit["png"] == combined_png for edit in state["edits"])
+        draft = page.evaluate("id=>draftMock.saved.get(id)",state["id"])
+        page.evaluate("previewTest.saveDraft()")
+        preview_version = page.evaluate("previewTest.draftPreviewVersion()")
+        scans_before = page.evaluate("draftMock.calls.filter(command=>['list_custom_skins','list_texture_variants'].includes(command)).length")
+        page.evaluate("previewTest.saveDraft()")
+        assert page.evaluate("previewTest.draftPreviewVersion()") == preview_version, "Unchanged autosave invalidated the draft thumbnail"
+        assert page.evaluate("draftMock.calls.filter(command=>['list_custom_skins','list_texture_variants'].includes(command)).length") == scans_before, "Autosave rescanned installed skins or the texture library"
+        assert len(draft["textures"]) == 1, "The same shared VMT must install once"
+        assert draft["textures"][0]["vmtText"] == fixture["material"]["vmtText"], "Component VMT shader settings replaced the shared material"
+        assert {item["partPath"]:item["png"] for item in draft["componentTextures"]} == {
+            fixture["gun"]:red_png, fixture["stock"]:blue_png}
+        assert page.evaluate("draftMock.exports.length") == before_installs, "Combining installed automatically"
+        page.evaluate("previewTest.rebuild()")
+        page.wait_for_function("png=>previewTest.textureEdits().find(edit=>edit.path.endsWith('/stock_ak101.mdl')).source===png",arg=blue_png)
+        assert page.evaluate("previewTest.textureEdits().find(edit=>edit.path.endsWith('/c_ak101.mdl')).source") == red_png
+        before_component_race = page.evaluate("previewTest.componentState().edits")
+        page.evaluate("draftMock.deferClipboard=true")
+        page.locator("#import-clipboard").click()
+        page.wait_for_function("typeof draftMock.resolveClipboard==='function'")
+        page.evaluate("path=>previewTest.editComponent(path)",fixture["stock"])
+        page.evaluate("png=>{draftMock.deferClipboard=false;draftMock.resolveClipboard(png)}",red_png)
+        page.wait_for_function("document.getElementById('toast').textContent.includes('component changed during import')")
+        assert page.evaluate("previewTest.componentState().edits") == before_component_race
+        page.evaluate("id=>previewTest.openDraft({id})",state["id"])
+        assert len(page.evaluate("previewTest.componentState().edits")) == 2
+        assert page.locator("#component-overview").is_visible()
+        restored_version = page.evaluate("previewTest.draftPreviewVersion()")
+        assert page.locator("#component-cards .component-card").filter(has_text="Stock — AK-101 Stock").locator("select").input_value() == source_ids[1], "Reopened component did not identify its saved library texture"
+        assert "Combined component textures" in page.locator("#shared-texture-cards").inner_text()
+        page.evaluate("previewTest.saveDraft()")
+        assert page.evaluate("previewTest.draftPreviewVersion()") == restored_version, "First unchanged save after reopening regenerated the preview"
+        assert page.evaluate("""id=>{
+          const draft=structuredClone(draftMock.saved.get(id)), reordered=structuredClone(draft);
+          reordered.textures.reverse();reordered.componentTextures.reverse();
+          reordered.name='Renamed without visual changes';reordered.activePartPath='another selection';
+          return previewTest.sameDraftPreview(draft,reordered);
+        }""",state["id"]), "Record order or metadata changes invalidated an unchanged preview"
+        page.locator('[data-library="skins"]').click()
+        page.locator(f'[data-draft-id="{state["id"]}"]').scroll_into_view_if_needed()
+        page.wait_for_function("id=>!!document.querySelector(`[data-draft-id='${id}'] .draft-thumb img`)",arg=state["id"])
+        page.evaluate("id=>{window.retainedPreview=document.querySelector(`[data-draft-id='${id}'] .draft-thumb img`)}",state["id"])
+        page.evaluate("previewTest.refreshSkins()")
+        assert page.evaluate("id=>document.querySelector(`[data-draft-id='${id}'] .draft-thumb img`)===window.retainedPreview",state["id"]), "Unchanged library refresh replaced the preview image"
+        page.evaluate("path=>previewTest.editComponent(path)",fixture["stock"])
+        extra_png = page.evaluate("previewTest.compositionPng('#88cc11','#88cc11')")
+        before_library_export = page.evaluate("draftMock.variants.size")
+        page.locator("#png-input").set_input_files({"name":"component-green.png","mimeType":"image/png","buffer":base64.b64decode(extra_png.split(",")[1])})
+        page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
+        assert page.evaluate("draftMock.variants.size") == before_library_export, "Component edits automatically added a library copy"
+        composed_green = page.evaluate("previewTest.compositionPng('#cc2233','#88cc11')")
+        page.evaluate("png=>{draftMock.combinedPng=png}",composed_green)
+        components_before_export = page.evaluate("previewTest.componentState().edits")
+        page.locator("#export-draft-textures").click()
+        page.wait_for_function("count=>draftMock.variants.size===count+1",arg=before_library_export)
+        exported = page.evaluate("([...draftMock.variants.values()]).at(-1)")
+        assert exported["png"] == composed_green, "Bulk export saved a component source instead of its composed atlas"
+        assert exported["vmtText"] == fixture["material"]["vmtText"]
+        assert page.evaluate("previewTest.componentState().edits") == components_before_export
+        page.locator("#export-draft-textures").click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('no new changed')")
+        assert page.evaluate("draftMock.variants.size") == before_library_export+1, "Repeated bulk export created duplicate variants"
+        composed_original = page.evaluate("previewTest.compositionPng('#cc2233','#666666')")
+        page.evaluate("png=>{draftMock.combinedPng=png}",composed_original)
+        page.locator("#variant-select").select_option("original")
+        page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
+        page.locator("#export-draft-textures").click()
+        page.wait_for_function("count=>draftMock.variants.size===count+2",arg=before_library_export)
+        assert page.evaluate("([...draftMock.variants.values()]).at(-1).png") == composed_original, "Library atlas omitted the restored original component"
+        page.evaluate("draftMock.componentConflict=true")
+        page.evaluate("path=>previewTest.editComponent(path)",fixture["stock"])
+        page.locator("#variant-select").select_option(source_ids[1])
+        page.wait_for_function("document.getElementById('draft-status').textContent.includes('output blocked')")
+        page.locator("#export-draft-textures").click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('could not be prepared')")
+        assert page.evaluate("draftMock.variants.size") == before_library_export+2, "Conflicting components exported partial library variants"
+        before_output = page.evaluate("draftMock.exports.length")
+        page.locator("#export-vtf").click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('conflicting component')")
+        assert page.evaluate("draftMock.exports.length") == before_output
+        page.evaluate("draftMock.componentConflict=false")
+        page.evaluate("png=>{draftMock.combinedPng=png}",combined_png)
+        page.locator("#variant-select").select_option(source_ids[0])
+        page.wait_for_function("previewTest.draftState().status.includes('Saved locally') && !document.getElementById('draft-status').textContent.includes('blocked')")
+        page.evaluate("previewTest.selectActiveShared()")
+        assert not page.evaluate("previewTest.componentState().mode")
+        assert page.locator("#uv-layers").is_visible()
+        assert page.locator("#uv-layers input").count() == 2
+        assert page.locator("#component-scope").is_visible()
+        assert page.locator("#component-name").inner_text().startswith("Shared texture ·")
+        page.wait_for_function("""() => {
+          const image=document.getElementById('component-preview');
+          return image.complete && image.naturalWidth===220;
+        }""")
+        page.locator("#export-image").click()
+        page.locator("#export-format").select_option("png")
+        page.locator('#export-dialog button[value="export"]').click()
+        page.wait_for_function("png=>draftMock.imageExports.at(-1)?.pngBase64===png",arg=combined_png)
+        page.evaluate("draftMock.clipboardImage=previewTest.compositionPng('#336633','#336633')")
+        page.locator("#import-clipboard").click()
+        page.wait_for_function("previewTest.componentState().edits.length===0 && previewTest.draftState().status.includes('Saved locally')")
+        assert page.evaluate("id=>draftMock.saved.get(id).componentTextures.length",state["id"]) == 0
+        print("PASS: illustrated right-panel overview, isolated component variants/3D preview, source persistence, shared shader, automatic atlas and blocked conflicting output")
+
+        page.evaluate("previewTest.setupSharedComposition()")
+        page.locator('[data-library="textures"]').click()
+        rename_row = page.locator(".texture-library-card").filter(has_text="Component red")
+        before_rename = page.evaluate("id=>structuredClone(draftMock.variants.get(id))",source_ids[0])
+        before_rename_draft = page.evaluate("previewTest.draftState()")
+        rename_row.get_by_role("button",name="Rename",exact=True).click()
+        page.locator("#rename-variant-name").fill("Cancelled rename")
+        page.locator('#rename-variant-dialog button[value="cancel"]').click()
+        assert page.evaluate("id=>draftMock.variants.get(id).name",source_ids[0]) == "Component red"
+        rename_row.get_by_role("button",name="Rename",exact=True).click()
+        page.locator("#rename-variant-name").fill("Renamed component red")
+        page.evaluate("draftMock.failVariantRename=true")
+        page.locator('#rename-variant-dialog button[value="rename"]').click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('Simulated texture rename failure')")
+        assert page.evaluate("id=>draftMock.variants.get(id).name",source_ids[0]) == "Component red"
+        page.evaluate("draftMock.failVariantRename=false")
+        rename_row.get_by_role("button",name="Rename",exact=True).click()
+        page.locator("#rename-variant-name").fill("  Renamed component red  ")
+        page.locator('#rename-variant-dialog button[value="rename"]').click()
+        page.wait_for_function("id=>draftMock.variants.get(id).name==='Renamed component red'",arg=source_ids[0])
+        after_rename = page.evaluate("id=>structuredClone(draftMock.variants.get(id))",source_ids[0])
+        assert after_rename.pop("name") == "Renamed component red"
+        before_rename.pop("name")
+        assert after_rename == before_rename
+        assert page.evaluate("previewTest.draftState()") == before_rename_draft
+        assert page.locator("#variant-select").locator(f'option[value="{source_ids[0]}"]').inner_text() == "Renamed component red"
+        page.reload(wait_until="networkidle")
+        page.wait_for_function("window.previewTest")
+        page.locator('[data-library="textures"]').click()
+        assert page.locator(".texture-library-card").filter(has_text="Renamed component red").count() == 1
+        print("PASS: texture-card Rename, cancel/error handling, stable identity/pixels/draft, updated selector and persistent label after reload")
+
+        page.evaluate("previewTest.open('models/perpheads/weapons/c_ak101.mdl')")
+        page.evaluate("previewTest.setupMaskedTexture()")
+        resized_source = page.evaluate("""()=>{
+          const canvas=document.createElement('canvas');canvas.width=2;canvas.height=1;
+          const context=canvas.getContext('2d');context.fillStyle='rgba(200,100,50,0.5)';
+          context.fillRect(0,0,2,1);return canvas.toDataURL();
+        }""")
+        page.locator("#png-input").set_input_files({"name":"resize.png","mimeType":"image/png","buffer":base64.b64decode(resized_source.split(",")[1])})
+        page.locator("#resize-image-dialog").wait_for(state="visible")
+        assert "distort" in page.locator("#resize-image-dialog").inner_text()
+        page.locator('#resize-image-dialog button[value="resize"]').click()
+        page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
+        assert page.evaluate("""async ()=>{
+          const image=new Image();image.src=previewTest.draftState().edits[0].png;await image.decode();
+          const canvas=document.createElement('canvas');canvas.width=canvas.height=4;
+          const context=canvas.getContext('2d');context.drawImage(image,0,0);
+          const pixel=context.getImageData(2,2,1,1).data;
+          return image.width===4&&image.height===4&&pixel[0]>190&&pixel[3]>=126&&pixel[3]<=129;
+        }"""), "Resized import did not match target dimensions and retain transparency"
+        page.evaluate("previewTest.holdTextureRedraws();previewTest.rebuild()")
+        page.wait_for_function("window.pendingTextureRedraws()>0")
+        page.wait_for_timeout(100)
+        before_edited_texture_ready = page.evaluate("previewTest.previewRenderCount()")
+        page.evaluate("window.releaseTextureRedraws()")
+        page.wait_for_function("count=>previewTest.previewRenderCount()>count",arg=before_edited_texture_ready)
+        print("PASS: mismatched imports warn, cancel without changes, and resize to exact texture dimensions with alpha")
+
         if args.screenshot:
             for gun, sight, suffix in (("g36", "", "-g36"), ("m4a1", "", "-irons-up"), ("m4a1", "eotech", "-irons-down")):
                 page.evaluate("path => previewTest.open(path)", f"models/perpheads/weapons/c_{gun}.mdl")
@@ -1140,7 +1744,7 @@ with sync_playwright() as playwright:
                   const pixels = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
                   return pixels.some((value, index) => index % 4 === 3 && value === 255);
                 }""")
-                assert "VTF not found" not in page.locator(".material-item").inner_text()
+                assert page.locator("#vtf-origin").inner_text() != "Not found"
                 assert "No VTF" != page.locator("#texture-size").inner_text()
                 page.screenshot(path=str(args.screenshot.with_name("remington-rail-texture.png")))
                 print("PASS: actual Remington rail texture displays decoded pixels rather than an empty UV canvas")
