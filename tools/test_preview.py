@@ -1401,7 +1401,7 @@ with sync_playwright() as playwright:
         for name, image in (("suppressor-red", red_png), ("suppressor-blue", blue_png)):
             before_count = page.evaluate("draftMock.variants.size")
             page.locator("#png-input").set_input_files({"name":name+".png","mimeType":"image/png","buffer":base64.b64decode(image.split(",")[1])})
-            page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
+            page.wait_for_function("png=>previewTest.variantEdits().some(edit=>edit.png===png)&&previewTest.draftState().status.includes('Saved locally')",arg=image)
             assert page.evaluate("draftMock.variants.size") == before_count, "Draft import automatically added a library variant"
             page.locator("#save-texture-variant").click()
             page.locator("#variant-name").fill(name)
@@ -1441,7 +1441,7 @@ with sync_playwright() as playwright:
         page.evaluate("draftMock.failVariantSave=true")
         before_count = page.evaluate("draftMock.variants.size")
         page.locator("#png-input").set_input_files({"name":"failed.png","mimeType":"image/png","buffer":base64.b64decode(red_png.split(",")[1])})
-        page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
+        page.wait_for_function("png=>previewTest.variantEdits().some(edit=>edit.png===png)&&previewTest.draftState().status.includes('Saved locally')",arg=red_png)
         assert page.evaluate("draftMock.variants.size") == before_count, "Import touched the texture library"
         prior = page.evaluate("previewTest.variantEdits()")
         page.locator("#save-texture-variant").click()
