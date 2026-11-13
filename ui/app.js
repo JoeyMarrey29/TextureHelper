@@ -722,9 +722,20 @@ function renderList() {
   $('scan-info').textContent = found.length > 250 ? `Showing 250 of ${found.length.toLocaleString()} results. Search to narrow the list.` : `${scanSummary} · ${compatibleOnly ? 'Guide compatible' : 'All models'}`;
 }
 
+function replacementDimensionsMatch(width, height, material) {
+  const validSide = side => Number.isInteger(side) && side > 0 && side <= 4096 && (side & (side - 1)) === 0;
+  return validSide(width) && validSide(height) && (!material?.width || !material?.height
+    || width * material.height === height * material.width);
+}
+
+function activeTextureDimensions() {
+  const image = currentEdit()?.image, material = activeMaterial();
+  return {width:image?.width || material?.width || 512, height:image?.height || material?.height || 512};
+}
+
 function variantMatches(variant, material = activeMaterial()) {
   return !!material && variant.vmtPath === material.vmtPath && variant.vtfPath === material.vtfPath
-    && variant.width === material.width && variant.height === material.height;
+    && replacementDimensionsMatch(variant.width, variant.height, material);
 }
 
 function renderTextureVariants() {
@@ -969,7 +980,7 @@ async function applyTextureVariant(id) {
   variantBusy = true; renderTextureVariants();
   try {
     const variant = id === 'original' ? null : await invoke('load_texture_variant', {id});
-    if (!textureSelected || !material?.image || (variant && !variantMatches(variant, material))) throw new Error('Choose a texture with matching VMT / VTF paths and dimensions first.');
+    if (!textureSelected || !material?.image || (variant && !variantMatches(variant, material))) throw new Error('Choose a texture with matching VMT / VTF paths, aspect ratio and supported dimensions first.');
     if (serial !== selectionSerial || loadout !== loadoutSerial || scope !== componentSelectionSerial || part !== activePartPath || skinKey(material) !== skinKey(activeMaterial())) {
       throw new Error('The selected part changed. Choose the variant again for the intended texture.');
     }
@@ -991,7 +1002,7 @@ async function applyComponentVariant(id, layer) {
   try {
     const variant = id === 'original' ? null : await invoke('load_texture_variant', {id});
     if (!material?.image || (variant && !variantMatches(variant, material))) {
-      throw new Error('Choose a texture with matching VMT / VTF paths and dimensions first.');
+      throw new Error('Choose a texture with matching VMT / VTF paths, aspect ratio and supported dimensions first.');
     }
     if (serial !== selectionSerial || loadout !== loadoutSerial || scope !== componentSelectionSerial
       || assembly.get(partPath)?.materials[materialIndex] !== material) {
@@ -1437,8 +1448,8 @@ async function openDraft(summary) {
     if (serial !== selectionSerial) return;
     for (const edit of restored) {
       const material = [...assembly.values()].flatMap(part => part.materials).find(material => skinKey(material) === edit.key);
-      if (material?.width && (edit.image.width !== material.width || edit.image.height !== material.height)) {
-        throw new Error(`Saved texture ${edit.key} no longer matches the content's ${material.width} × ${material.height} dimensions.`);
+      if (!replacementDimensionsMatch(edit.image.width, edit.image.height, material)) {
+        throw new Error(`Saved texture ${edit.key} has unsupported dimensions or no longer matches the content's aspect ratio.`);
       }
     }
     draftSession = {id: draft.id, name: draft.name, status: 'Saved locally · restored', failed: false,
@@ -1447,8 +1458,8 @@ async function openDraft(summary) {
     for (const edit of restored) edits.set(edit.key, edit);
     for (const edit of restoredComponents) {
       const part = assembly.get(edit.partPath), material = part?.materials[edit.materialIndex];
-      if (material?.width && (edit.image.width !== material.width || edit.image.height !== material.height)) {
-        throw new Error('Saved component dimensions no longer match the original material.');
+      if (!replacementDimensionsMatch(edit.image.width, edit.image.height, material)) {
+        throw new Error('Saved component dimensions are unsupported or no longer match the original aspect ratio.');
       }
       componentEdits.set(`${edit.partPath}:${edit.materialIndex}`, {...edit, vtfPath:material?.vtfPath, vmtPath:material?.vmtPath});
     }
@@ -1490,9 +1501,20 @@ async function restoreSavedSkin(draft) {
     const textures = saved.textures.filter(texture => supportedMaterial(texture, texture.partPath));
     const choices = await alphaInstallChoices(textures);
     if (!choices) return;
-    await invoke('install_draft', {id: draft.id, alphaChoices: Object.fromEntries(choices)});
-    if (draftSession?.id === draft.id) applyAlphaChoices(choices);
-    await refreshSkins(); toast('Saved skin installed.');
+    const request = {id: draft.id, alphaChoices: Object.fromEntries(choices)};
+    const source = await invoke('load_draft', {id:draft.id});
+    const mergeRequest = source.componentTextures?.length ? {id:draft.id,
+      vtfPaths:[...new Set(textures.map(texture => texture.vtfPath))], componentKeys:null, alphaChoices:request.alphaChoices} : null;
+    const confirmation = await confirmSkinInstall(request, mergeRequest);
+    if (confirmation === null) return;
+    if (confirmation.mergeRequest) {
+      const name = await invoke('install_component_merge', {request:confirmation.mergeRequest, overwrite:confirmation.overwrite});
+      await refreshSkins(); toast(`Installed "${name}". Source drafts were kept unchanged.`);
+    } else {
+      await invoke('install_draft', {...request, overwrite:confirmation.overwrite});
+      if (draftSession?.id === draft.id) applyAlphaChoices(choices);
+      await refreshSkins(); toast('Saved skin installed.');
+    }
   });
 }
 
@@ -1626,7 +1648,8 @@ function renderTexture() {
   const layers = editingTextureLayers();
   $('material-name').textContent = layers.length > 1 ? (material.vtfPath || material.name).split('/').pop() : material.name;
   renderUvLayers();
-  $('texture-size').textContent = material.width ? `${material.width} × ${material.height}` : 'No VTF';
+  const {width, height} = activeTextureDimensions();
+  $('texture-size').textContent = material.width ? `${width} × ${height}` : 'No VTF';
   $('vmt-path').textContent = [...new Set(layers.map(layer => layer.material.vmtPath || 'Not found'))].join('\n');
   $('vmt-origin').textContent = [...new Set(layers.map(layer => layer.material.vmtOrigin || 'Not found'))].join('\n');
   $('vtf-path').textContent = material.vtfPath || 'Not found';
@@ -1645,9 +1668,9 @@ function renderTexture() {
       : 'This material can be previewed and mapped. Installation supports finished weapons and attachments using v_models or Jarheads weapon materials.'
     : importedPng
       ? 'Shared atlas preview. Component edits keep their own images in 3D. Importing here replaces this shared texture and clears its component overrides.'
-      : 'Import a PNG, DDS or VTF with matching dimensions, optionally selecting its VMT + VTF together. Changes are saved only in the draft; use Export draft textures to library when you want a reusable copy.';
+      : 'Import a PNG, DDS or VTF with the original aspect ratio and power-of-two dimensions up to 4096 × 4096, optionally selecting its VMT + VTF together. Resolution can differ from the original. Changes are saved only in the draft.';
   renderUvCoordinates();
-  const canvas = $('texture-canvas'), width = material.width || 512, height = material.height || 512;
+  const canvas = $('texture-canvas');
   canvas.width = width; canvas.height = height;
   const context = canvas.getContext('2d'); context.clearRect(0, 0, width, height);
   const img = texturePreviewImage(importedPng || material.image, $('show-alpha').checked);
@@ -1660,6 +1683,7 @@ function renderUvCoordinates() {
   if (!$('uv-coordinate-details').open) { output.textContent = ''; return; }
   const material = activeMaterial();
   if (!material) { output.textContent = ''; return; }
+  const {width, height} = activeTextureDimensions();
   const triangles = [], layers = editingTextureLayers();
   for (const layer of layers) {
     if (hiddenUvLayers.has(uvLayerKey(layer))) continue;
@@ -1670,7 +1694,7 @@ function renderUvCoordinates() {
       const points = [0, 2, 4].map(offset => {
         const u = mesh.uvs[i + offset], v = mesh.uvs[i + offset + 1];
         const wrappedU = ((u % 1) + 1) % 1, wrappedV = ((v % 1) + 1) % 1;
-        return `(${u.toFixed(6)}, ${v.toFixed(6)}) [tile ${(wrappedU * (material.width || 512)).toFixed(1)}, ${(wrappedV * (material.height || 512)).toFixed(1)} px]`;
+        return `(${u.toFixed(6)}, ${v.toFixed(6)}) [tile ${(wrappedU * width).toFixed(1)}, ${(wrappedV * height).toFixed(1)} px]`;
       });
       triangles.push(`${String(++triangleIndex).padStart(3, '0')}: ${points.join(' | ')}`);
     }
@@ -1713,7 +1737,8 @@ $('export-image').addEventListener('click', async () => {
   catch (error) { toast(String(error), true); }
 });
 function uvOverlayPng(material) {
-  const canvas = document.createElement('canvas'); canvas.width = material.width || 512; canvas.height = material.height || 512;
+  const {width, height} = activeTextureDimensions();
+  const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
   drawUv(canvas.getContext('2d'), canvas.width, canvas.height);
   return canvas.toDataURL('image/png');
 }
@@ -1746,10 +1771,13 @@ async function importTexture(loadImage) {
     const vmtText = typeof loaded === 'string' ? null : loaded.vmtText;
     const img = new Image(); img.src = dataUrl; await img.decode();
     if (serial !== selectionSerial || loadout !== loadoutSerial || scope !== componentSelectionSerial) throw new Error('The model or component changed during import. Import the texture again on the intended model.');
-    if (material.width && material.height && (img.width !== material.width || img.height !== material.height)) {
+    if (!replacementDimensionsMatch(img.width, img.height, material)) {
+      if (!replacementDimensionsMatch(material.width, material.height, material)) {
+        throw new Error('This material has no supported target size. Use power-of-two dimensions up to 4096 × 4096.');
+      }
       const dialog = $('resize-image-dialog');
       if (dialog.open) throw new Error('Finish the current resize confirmation before importing another image.');
-      $('resize-image-message').textContent = `This image is ${img.width} × ${img.height}. This texture requires ${material.width} × ${material.height}.`;
+      $('resize-image-message').textContent = `This image is ${img.width} × ${img.height}. Textures must keep the original aspect ratio and use power-of-two dimensions up to 4096 × 4096. Resize to ${material.width} × ${material.height}?`;
       dialog.returnValue = 'cancel';
       const resize = await new Promise(resolve => {
         dialog.addEventListener('close', () => resolve(dialog.returnValue === 'resize'), {once:true});
@@ -1868,7 +1896,81 @@ function applyAlphaChoices(choices) {
     if (choices.has(edit.vtfPath)) edit.stripAlpha = choices.get(edit.vtfPath);
   }
 }
-async function installEditedTextures(textures) {
+async function confirmSkinInstall(request, mergeRequest = null, merged = false) {
+  toast('Checking which models will change...');
+  const {conflicts, affectedModels, warnings} = merged ? await invoke('preview_component_merge', {request:mergeRequest})
+    : await invoke('preview_skin_install', request);
+  if (!conflicts.length && !affectedModels.length && !warnings.length) return {overwrite:{}, mergeRequest:merged ? mergeRequest : null};
+  const dialog = $('overwrite-skin-dialog'), list = $('overwrite-skin-files');
+  if (dialog.open) throw new Error('Finish the current skin replacement confirmation first.');
+  $('overwrite-skin-title').textContent = merged ? 'Review merged component texture'
+    : conflicts.length ? 'Replace installed skin?' : 'Review skin installation';
+  $('skin-overwrite-warning').hidden = !conflicts.length;
+  $('merge-component-install').hidden = !mergeRequest || merged;
+  $('confirm-skin-overwrite').textContent = merged ? 'Merge and install' : conflicts.length ? 'Replace entire texture' : 'Install';
+  $('install-affected-title').textContent = `Models that will change (${affectedModels.length})`;
+  const affected = $('install-affected-models');
+  affected.replaceChildren();
+  if (affectedModels.length) {
+    const models = document.createElement('ul');
+    for (const path of affectedModels) {
+      const item = document.createElement('li');
+      item.textContent = sharedComponentName({path}); item.title = path; models.append(item);
+    }
+    affected.append(models);
+  } else {
+    affected.textContent = warnings.length ? 'No model changes could be confirmed. See the warnings below.'
+      : 'No indexed weapon or attachment changes its UV-covered pixels or material settings.';
+  }
+  const warningList = $('install-impact-warnings');
+  warningList.replaceChildren();
+  for (const warning of warnings) {
+    const message = document.createElement('p');
+    message.className = 'note'; message.textContent = `Warning: ${warning}`; warningList.append(message);
+  }
+  $('merge-install-note').textContent = merged
+    ? 'The right side now shows the merged result. Installed pixels outside the selected component UVs and existing VMT settings are preserved. Conflicting UV overlaps block merging. The result is saved as a separate installed skin for status, export and uninstall; source drafts stay unchanged.'
+    : 'Replace installs the entire new atlas. Merge component textures, when available, preserves other installed UV regions and material settings, then shows the merged result for confirmation. A merged result becomes a separate saved skin; source drafts stay unchanged. Flattened textures and backups cannot identify individual components.';
+  list.replaceChildren();
+  for (const conflict of conflicts) {
+    const card = document.createElement('section'), path = document.createElement('p');
+    card.className = 'install-conflict';
+    path.className = 'install-conflict-path'; path.textContent = conflict.path; card.append(path);
+    const comparison = document.createElement('div'); comparison.className = 'install-comparison';
+    for (const [label, png, text] of [
+      ['Installed — will be replaced', conflict.installedPng, conflict.installedText],
+      [merged ? 'Merged — will be installed' : 'New — will be installed', conflict.replacementPng, conflict.replacementText],
+    ]) {
+      const side = document.createElement('div'), title = document.createElement('h3');
+      title.textContent = label; side.append(title);
+      if (png) {
+        const image = document.createElement('img'); image.src = png; image.alt = label; side.append(image);
+      } else {
+        const content = document.createElement(text ? 'pre' : 'p');
+        content.textContent = text || 'Preview unavailable. This file will still be replaced if you proceed.';
+        side.append(content);
+      }
+      comparison.append(side);
+    }
+    card.append(comparison);
+    if (conflict.warning) {
+      const warning = document.createElement('p'); warning.className = 'note'; warning.textContent = conflict.warning; card.append(warning);
+    }
+    list.append(card);
+  }
+  dialog.returnValue = 'cancel';
+  const choice = await new Promise(resolve => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue), {once:true});
+    dialog.showModal(); $('cancel-skin-overwrite').focus();
+  });
+  list.replaceChildren();
+  affected.replaceChildren();
+  warningList.replaceChildren();
+  if (choice === 'merge' && mergeRequest && !merged) return confirmSkinInstall(request, mergeRequest, true);
+  return choice === 'overwrite' ? {overwrite:Object.fromEntries(conflicts.map(conflict => [conflict.path, conflict.fingerprint])),
+    mergeRequest:merged ? mergeRequest : null} : null;
+}
+async function installEditedTextures(textures, componentOnly = false) {
   if (!textures.length) throw new Error('No supported edited textures to install.');
   if (componentEdits.size) {
     const paths = new Set(textures.map(texture => texture.vtfPath));
@@ -1879,10 +1981,22 @@ async function installEditedTextures(textures) {
   const choices = await alphaInstallChoices(textures);
   if (!choices) return;
   await saveDraft();
-  const count = await invoke('export_textures', {skins: textures.map(texture => ({
+  const request = {skins: textures.map(texture => ({
     materialPath: texture.vtfPath, vmtPath: texture.vmtPath, vmtText: texture.vmtText,
     pngBase64: texture.png, stripAlpha: choices.get(texture.vtfPath),
-  }))});
+  }))};
+  const vtfPaths = [...new Set(textures.map(texture => texture.vtfPath))];
+  const mergeRequest = componentEdits.size ? {id:draftSession.id, vtfPaths,
+    componentKeys:componentOnly && componentMode ? [`${activePartPath}:${materialIndex}`] : null,
+    alphaChoices:Object.fromEntries(choices)} : null;
+  const confirmation = await confirmSkinInstall(request, mergeRequest);
+  if (confirmation === null) return;
+  if (confirmation.mergeRequest) {
+    const name = await invoke('install_component_merge', {request:confirmation.mergeRequest, overwrite:confirmation.overwrite});
+    installAvailable = true; await refreshSkins(); toast(`Installed "${name}". Source drafts were kept unchanged.`);
+    return;
+  }
+  const count = await invoke('export_textures', {...request, overwrite:confirmation.overwrite});
   applyAlphaChoices(choices);
   await saveDraft();
   installAvailable = true; await refreshSkins(); toast(`${count} custom materials installed.`);
@@ -1894,7 +2008,7 @@ $('export-vtf').addEventListener('click', () => runSkinInstall(async () => {
       ...currentEdit(), vtfPath: material.vtfPath, vmtPath: material.vmtPath, vmtText: edits.get(skinKey(material))?.vmtText ?? material.vmtText,
     });
   }
-  await installEditedTextures([...skins.values()]);
+  await installEditedTextures([...skins.values()], true);
 }));
 $('install-all').addEventListener('click', () => runSkinInstall(async () => {
   const byMaterial = new Map();

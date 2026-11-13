@@ -14,7 +14,7 @@ use image::{DynamicImage, GenericImageView, ImageFormat};
 use regex::Regex;
 use serde::Serialize;
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fs,
     io::{Cursor, Read},
     path::{Path, PathBuf},
@@ -1313,6 +1313,7 @@ fn export_texture(
     vmt_text: String,
     png_base64: String,
     strip_alpha: Option<bool>,
+    overwrite: Option<BTreeMap<String, String>>,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     let material_path = key(&material_path);
@@ -1325,16 +1326,6 @@ fn export_texture(
     if !material_path.ends_with(".vtf") || !vmt_path.ends_with(".vmt") {
         return Err("Invalid material path".into());
     }
-    let bytes = STANDARD
-        .decode(
-            png_base64
-                .strip_prefix("data:image/png;base64,")
-                .unwrap_or(&png_base64),
-        )
-        .map_err(|error| error.to_string())?;
-    let png = image::load_from_memory_with_format(&bytes, ImageFormat::Png)
-        .map_err(|error| error.to_string())?;
-    let vtf = encode_skin_vtf(&png, strip_alpha.unwrap_or(false))?;
     let install = state
         .0
         .lock()
@@ -1347,13 +1338,14 @@ fn export_texture(
                 .pick_folder()
         })
         .ok_or("Export cancelled")?;
-    let result = write_custom_skin(&install, &material_path, &vmt_path, &vmt_text, &vtf)?;
+    drafts::install_texture_exports(&[SkinExport {material_path, vmt_path, vmt_text, png_base64,
+        strip_alpha:strip_alpha.unwrap_or(false)}], &install, overwrite)?;
     state
         .0
         .lock()
         .map_err(|_| "Index lock failed")?
         .install_root = Some(install);
-    Ok(result)
+    Ok("Custom material installed through phcustomtextures.".into())
 }
 
 #[derive(serde::Deserialize)]
@@ -1368,7 +1360,7 @@ struct SkinExport {
 }
 
 #[tauri::command]
-fn export_textures(skins: Vec<SkinExport>, state: State<'_, AppState>) -> Result<usize, String> {
+fn export_textures(skins: Vec<SkinExport>, overwrite: Option<BTreeMap<String, String>>, state: State<'_, AppState>) -> Result<usize, String> {
     if skins.is_empty() {
         return Err("No edited textures to install".into());
     }
@@ -1384,88 +1376,16 @@ fn export_textures(skins: Vec<SkinExport>, state: State<'_, AppState>) -> Result
                 .pick_folder()
         })
         .ok_or("Export cancelled")?;
-    if !install.join("addons").is_dir() || !install.join("data").is_dir() {
-        return Err("Choose a Garry's Mod garrysmod folder containing addons and data.".into());
-    }
-    let mut prepared = Vec::new();
-    let mut destinations = std::collections::HashSet::new();
-    let mut shared_textures = HashMap::new();
-    for skin in skins {
-        let material_path = key(&skin.material_path);
-        let vmt_path = key(&skin.vmt_path);
-        if !is_skin_material_path(&material_path)
-            || !is_skin_material_path(&vmt_path)
-            || !material_path.ends_with(".vtf")
-            || !vmt_path.ends_with(".vmt")
-        {
-            return Err(format!("Guide does not support this material: {vmt_path}"));
-        }
-        let vtf_target = install.join("addons/skins").join(format!(
-            "{}_custom.vtf",
-            material_path.trim_end_matches(".vtf")
-        ));
-        let vmt_target = install
-            .join("data/phcustomtextures")
-            .join(vmt_path.trim_start_matches("materials/"));
-        if vtf_target.exists()
-            || vmt_target.exists()
-            || !destinations.insert(vmt_target.clone())
-        {
-            return Err(format!(
-                "A custom skin already exists or is duplicated: {vmt_path}"
-            ));
-        }
-        let texture_re = Regex::new(r#"(?im)^\s*"?\$basetexture"?\s+(?:"[^"\r\n]+"|[^"\s]+)"#).unwrap();
-        if !texture_re.is_match(&skin.vmt_text) {
-            return Err(format!("VMT has no $basetexture reference: {vmt_path}"));
-        }
-        let bytes = STANDARD
-            .decode(
-                skin.png_base64
-                    .strip_prefix("data:image/png;base64,")
-                    .unwrap_or(&skin.png_base64),
-            )
-            .map_err(|error| error.to_string())?;
-        let png = image::load_from_memory_with_format(&bytes, ImageFormat::Png)
-            .map_err(|error| error.to_string())?;
-        let vtf = encode_skin_vtf(&png, skin.strip_alpha)?;
-        if let Some(previous) = shared_textures.insert(vtf_target, vtf.clone()) {
-            if previous != vtf {
-                return Err("Edited materials sharing a VTF have conflicting texture pixels".into());
-            }
-        }
-        prepared.push((material_path, vmt_path, skin.vmt_text, vtf));
-    }
-    let mut written = Vec::new();
-    for (material_path, vmt_path, vmt_text, vtf) in &prepared {
-        let vtf_target = install.join("addons/skins").join(format!(
-            "{}_custom.vtf", material_path.trim_end_matches(".vtf")));
-        let texture_already_written = written.contains(&vtf_target);
-        match write_custom_skin_shared(&install, material_path, vmt_path, vmt_text, vtf, texture_already_written) {
-            Ok(_) => {
-                if !texture_already_written { written.push(vtf_target); }
-                written.push(
-                    install
-                        .join("data/phcustomtextures")
-                        .join(vmt_path.trim_start_matches("materials/")),
-                );
-            }
-            Err(error) => {
-                for path in written {
-                    let _ = fs::remove_file(path);
-                }
-                return Err(error);
-            }
-        }
-    }
+    drafts::install_texture_exports(&skins, &install, overwrite)?;
     state
         .0
         .lock()
         .map_err(|_| "Index lock failed")?
         .install_root = Some(install);
-    Ok(prepared.len())
+    Ok(skins.len())
 }
 
+#[cfg(test)]
 fn write_custom_skin(
     install: &Path,
     material_path: &str,
@@ -1476,6 +1396,7 @@ fn write_custom_skin(
     write_custom_skin_shared(install, material_path, vmt_path, vmt_text, vtf, false)
 }
 
+#[cfg(test)]
 fn write_custom_skin_shared(
     install: &Path,
     material_path: &str,
@@ -1628,6 +1549,9 @@ fn main() {
             drafts::export_custom_skin,
             drafts::import_skin,
             drafts::install_draft,
+            drafts::preview_skin_install,
+            drafts::preview_component_merge,
+            drafts::install_component_merge,
             textures::save_texture_variant,
             textures::rename_texture_variant,
             textures::list_texture_variants,

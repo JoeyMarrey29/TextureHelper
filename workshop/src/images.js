@@ -67,9 +67,9 @@ export async function sanitizePng(text) {
       header = value;
       const dimensions = new DataView(value.buffer, value.byteOffset);
       width = dimensions.getUint32(0); height = dimensions.getUint32(4);
-      if (!width || !height || width > 2048 || height > 2048 || value[8] !== 8
+      if (!width || !height || width > 4096 || height > 4096 || value[8] !== 8
         || ![2, 6].includes(value[9]) || value[10] || value[11] || value[12]) {
-        throw new Error('Workshop requires non-interlaced RGB/RGBA 8-bit PNGs up to 2048 x 2048');
+        throw new Error('Workshop requires non-interlaced RGB/RGBA 8-bit PNGs up to 4096 x 4096');
       }
       stride = width * (value[9] === 6 ? 4 : 3) + 1;
     } else if (type === 'IDAT') {

@@ -92,6 +92,15 @@ fn valid_dimensions(width: u32, height: u32) -> Result<(), String> {
     Ok(())
 }
 
+pub(super) fn validate_replacement_dimensions(width: u32, height: u32, original_width: u32, original_height: u32) -> Result<(), String> {
+    valid_dimensions(width, height)?;
+    if original_width == 0 || original_height == 0
+        || width as u64 * original_height as u64 != height as u64 * original_width as u64 {
+        return Err("Replacement textures must keep the original aspect ratio".into());
+    }
+    Ok(())
+}
+
 pub(super) fn decode_texture(bytes: &[u8]) -> Result<DynamicImage, String> {
     if bytes.len() > MAX_BYTES { return Err("Texture exceeds 96 MiB".into()); }
     let image = if bytes.starts_with(b"VTF\0") {
@@ -324,7 +333,7 @@ pub fn list_texture_variants(app: tauri::AppHandle, state: State<'_, AppState>) 
     discover_at(&storage(&app)?, &index)
 }
 
-fn texture_reference(text: &str) -> Result<String, String> {
+pub(super) fn texture_reference(text: &str) -> Result<String, String> {
     let expression = Regex::new(r#"(?im)^\s*"?\$basetexture"?\s+(?:"([^"\r\n]+)"|([^"\s]+))"#).unwrap();
     let capture = expression.captures(text).ok_or("VMT has no explicit $basetexture")?;
     let reference = capture.get(1).or_else(|| capture.get(2)).ok_or("VMT has no texture reference")?.as_str();
@@ -529,6 +538,23 @@ mod tests {
         assert!(rename_at(root.path(), "../unsafe", "Name").is_err());
         assert!(rename_at(root.path(), &"a".repeat(64), "Name").is_err());
         assert_eq!(read_at(root.path(), &saved.id).unwrap().name, "Blue suppressor");
+    }
+
+    #[test]
+    fn replacements_allow_different_resolutions_but_keep_ratio_and_limits() {
+        for (width, height, original_width, original_height) in [
+            (1024, 1024, 512, 512), (256, 256, 512, 512),
+            (2048, 1024, 512, 256), (256, 512, 512, 1024),
+            (4096, 4096, 512, 512),
+        ] {
+            validate_replacement_dimensions(width, height, original_width, original_height).unwrap();
+        }
+        for (width, height, original_width, original_height) in [
+            (1024, 512, 512, 512), (1000, 1000, 512, 512),
+            (8192, 8192, 512, 512), (0, 0, 512, 512), (512, 512, 0, 0),
+        ] {
+            assert!(validate_replacement_dimensions(width, height, original_width, original_height).is_err());
+        }
     }
 
     #[test]

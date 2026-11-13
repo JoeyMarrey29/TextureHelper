@@ -9,11 +9,11 @@ const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const encode = value => new TextEncoder().encode(JSON.stringify(value));
 const safeFailures = new Set([
   'Choose an editable supported draft with 1–12 textures', 'Material belongs to an incompatible attachment',
-  'Unsupported or duplicate workshop material', 'Texture dimensions do not match approved content',
+  'Unsupported or duplicate workshop material', 'Textures require power-of-two dimensions with the approved aspect ratio',
   'Unsupported attachment slot', 'Unsupported attachment selection', 'Preview must be at most 1024 pixels per side',
   'Content exceeds its size limit', 'Missing PNG', 'Invalid PNG encoding or size', 'Invalid PNG signature',
   'Too many PNG chunks', 'Truncated PNG', 'Truncated PNG chunk', 'PNG checksum mismatch',
-  'PNG must start with IHDR', 'Invalid PNG header', 'Workshop requires non-interlaced RGB/RGBA 8-bit PNGs up to 2048 x 2048',
+  'PNG must start with IHDR', 'Invalid PNG header', 'Workshop requires non-interlaced RGB/RGBA 8-bit PNGs up to 4096 x 4096',
   'Noncontiguous PNG data', 'Invalid PNG end', 'Unsupported PNG chunk', 'Missing PNG end',
   'Invalid PNG pixel length', 'Invalid PNG row filter', 'Sanitized package too large'
 ]);

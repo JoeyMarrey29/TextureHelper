@@ -52,7 +52,7 @@ window.previewTest = {
   THREE, createSourceMaterial, makeMaterial, makeThumbnail, resolveLoadout, slotChoices,
   supportedMaterial,
   setSlotAttachment, setView, modelCategory, renderList, openDraft, saveDraft, stageWorkshopDraft,
-  applyTextureVariant, applyComponentVariant, refreshSkins,
+  applyTextureVariant, applyComponentVariant, refreshSkins, restoreSavedSkin,
   previewRenderCount:()=>renderer.info.render.frame,
   holdTextureRedraws() {
     const original=THREE.TextureLoader.prototype.load;
@@ -85,9 +85,9 @@ window.previewTest = {
     const context=canvas.getContext('2d');context.fillStyle=left;context.fillRect(0,0,8,8);
     context.fillStyle=right;context.fillRect(8,0,8,8);return canvas.toDataURL();
   },
-  variantPng(color) {
-    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 4;
-    const context = canvas.getContext('2d'); context.fillStyle = color; context.fillRect(0,0,4,4);
+  variantPng(color, width = 4, height = width) {
+    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+    const context = canvas.getContext('2d'); context.fillStyle = color; context.fillRect(0,0,width,height);
     return canvas.toDataURL();
   },
   setupVariantFixture() {
@@ -98,6 +98,10 @@ window.previewTest = {
         image:this.variantPng('#666666')});
     }
     renderAssembly(); renderMaterials();
+  },
+  setupResolutionFixture() {
+    this.setupVariantFixture();this.setupMaskedTexture(512);
+    window.draftMock.componentFixture={paths:[model.path],material:{...activeMaterial()}};
   },
   variantEdits() { return [...edits.values()].map(({key,png,vmtText}) => ({key,png,vmtText})); },
   draftState() { return {id: draftSession?.id, name: draftSession?.name, status: draftSession?.status,
@@ -242,12 +246,12 @@ window.previewTest = {
   textureEdits() { return group.children.map(object => ({path: object.userData.partPath,
     key: object.userData.skinKey, source: object.material.map?.image?.src})); },
   resetEdits() { draftSession = null; edits.clear(); partCache.clear(); },
-  setupMaskedTexture() {
-    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 4;
+  setupMaskedTexture(width = 4, height = width) {
+    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
     const context = canvas.getContext('2d'); context.fillStyle = 'rgba(200,100,50,0.125)';
-    context.fillRect(0, 0, 4, 4);
+    context.fillRect(0, 0, width, height);
     const material = activeMaterial(); material.image = canvas.toDataURL();
-    material.width = material.height = 4;
+    material.width = width; material.height = height;
     renderAssembly(); renderMaterials(); return material.image;
   }
 };
@@ -501,7 +505,7 @@ with sync_playwright() as playwright:
             }
             if (command === 'list_drafts') return [...mock.saved.values()].map(draft => ({
               id: draft.id, name: draft.name, modelPath: draft.modelPath, textureCount: draft.textures.length,
-              installedCount: mock.installed.has(draft.id) ? draft.textures.length : 0,
+              installedCount: mock.installed.has(draft.id) ? (draft.archivedFiles?.length ? 1 : draft.textures.length) : 0,
               installableCount: draft.archivedFiles?.length ? 1 : draft.textures.length,
               archived: !!draft.archivedFiles?.length, installedIds: []
             }));
@@ -559,6 +563,8 @@ with sync_playwright() as playwright:
               return;
             }
             if (command === 'install_draft') {
+              if (mock.failOverwrite) throw Error('Skin files changed since confirmation. Review again.');
+              mock.lastInstallOverwrite = args.overwrite;
               const draft = mock.saved.get(args.id);
               for (const texture of draft.textures) {
                 if (args.alphaChoices?.[texture.vtfPath] !== undefined) texture.stripAlpha = args.alphaChoices[texture.vtfPath];
@@ -566,7 +572,34 @@ with sync_playwright() as playwright:
               localStorage.setItem('mockDrafts', JSON.stringify(Object.fromEntries(mock.saved)));
               mock.installed.add(args.id); return;
             }
-            if (command === 'export_textures') { mock.exports.push(args.skins); return args.skins.length; }
+            if (command === 'preview_skin_install') {
+              if (mock.failInstallPreview) throw Error('Could not read the installed skin');
+              mock.lastInstallPreview = structuredClone(args);
+              return structuredClone({conflicts:mock.installConflicts || [],affectedModels:mock.installAffectedModels || [],
+                warnings:mock.installImpactWarnings || []});
+            }
+            if (command === 'preview_component_merge') {
+              mock.lastMergePreview = structuredClone(args.request);
+              if (mock.failMerge) throw Error('Merge blocked: overlapping UV pixels conflict with another component');
+              return structuredClone({conflicts:mock.mergeConflicts || [],affectedModels:mock.mergeAffectedModels || [],
+                warnings:mock.mergeImpactWarnings || []});
+            }
+            if (command === 'install_component_merge') {
+              if (mock.failOverwrite) throw Error('Skin files changed since confirmation. Review again.');
+              mock.lastMergeInstall = structuredClone(args);
+              mock.mergeInstalls = (mock.mergeInstalls || 0) + 1;
+              const source=mock.saved.get(args.request.id);
+              const merged={...structuredClone(source),id:'merged-'+mock.mergeInstalls,
+                name:source.name+' - merged installation',textures:[],componentTextures:[],
+                archivedFiles:[{root:'vtf',relative:'merged_custom.vtf',bytes:'mock'}]};
+              mock.saved.set(merged.id,merged);mock.installed.add(merged.id);
+              return merged.name;
+            }
+            if (command === 'export_textures') {
+              if (mock.failOverwrite) throw Error('Skin files changed since confirmation. Review again.');
+              mock.lastInstallOverwrite = args.overwrite;
+              mock.exports.push(args.skins); return args.skins.length;
+            }
             if (command === 'texture_has_alpha') {
               const image = new Image(); image.src = args.pngBase64; await image.decode();
               const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
@@ -742,12 +775,12 @@ with sync_playwright() as playwright:
         page.wait_for_function("document.getElementById('toast').textContent.includes('no image pixels')")
         assert page.evaluate("draftMock.saved.size") == 0
         page.evaluate("""() => {
-          const canvas = document.createElement('canvas'); canvas.width = canvas.height = 2;
+          const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 1;
           draftMock.clipboardImage = canvas.toDataURL();
         }""")
         page.locator("#import-clipboard").click()
         page.locator("#resize-image-dialog").wait_for(state="visible")
-        assert "2 × 2" in page.locator("#resize-image-message").inner_text()
+        assert "2 × 1" in page.locator("#resize-image-message").inner_text()
         assert "4 × 4" in page.locator("#resize-image-message").inner_text()
         page.locator('#resize-image-dialog button[value="cancel"]').click()
         page.wait_for_function("document.getElementById('toast').textContent.includes('import cancelled')")
@@ -1705,6 +1738,188 @@ with sync_playwright() as playwright:
         page.evaluate("window.releaseTextureRedraws()")
         page.wait_for_function("count=>previewTest.previewRenderCount()>count",arg=before_edited_texture_ready)
         print("PASS: mismatched imports warn, cancel without changes, and resize to exact texture dimensions with alpha")
+
+        page.evaluate("""async ()=>{
+          await previewTest.open('models/perpheads/weapons/c_ak101.mdl');
+          previewTest.setupResolutionFixture();
+        }""")
+        higher = page.evaluate("previewTest.variantPng('rgba(70,150,220,0.5)',1024)")
+        page.locator("#png-input").set_input_files({"name":"higher.png","mimeType":"image/png","buffer":base64.b64decode(higher.split(",")[1])})
+        page.wait_for_function("png=>previewTest.draftState().edits.some(edit=>edit.png===png)&&previewTest.draftState().status.includes('Saved locally')",arg=higher)
+        assert not page.locator("#resize-image-dialog").is_visible()
+        assert page.locator("#texture-size").inner_text() == "1024 × 1024"
+        assert page.locator("#texture-canvas").evaluate("canvas=>canvas.width===1024&&canvas.height===1024")
+        copies = page.evaluate("draftMock.copies.length")
+        page.locator("#copy-overlay").click()
+        page.wait_for_function("count=>draftMock.copies.length===count+1",arg=copies)
+        assert page.evaluate("""async ()=>{
+          const image=new Image();image.src=draftMock.copies.at(-1);await image.decode();
+          return image.width===1024&&image.height===1024;
+        }""")
+        page.locator("#save-texture-variant").click()
+        page.locator("#variant-name").fill("High-resolution test")
+        page.locator('#save-variant-dialog button[value="save"]').click()
+        page.wait_for_function("[...draftMock.variants.values()].some(variant=>variant.name==='High-resolution test')")
+        high_id = page.evaluate("[...draftMock.variants.values()].find(variant=>variant.name==='High-resolution test').id")
+        page.locator("#variant-select").select_option("original")
+        page.wait_for_function("document.getElementById('variant-select').value==='original'")
+        page.locator("#variant-select").select_option(high_id)
+        page.wait_for_function("png=>previewTest.draftState().edits.some(edit=>edit.png===png)&&previewTest.draftState().status.includes('Saved locally')",arg=higher)
+        high_draft = page.evaluate("previewTest.draftState().id")
+        assert page.evaluate("id=>previewTest.openDraft({id})",high_draft)
+        page.evaluate("previewTest.selectActiveShared()")
+        assert page.evaluate("png=>previewTest.draftState().edits.some(edit=>edit.png===png)",higher)
+        assert page.locator("#texture-size").inner_text() == "1024 × 1024"
+        assert page.locator("#variant-select").input_value() == high_id
+        lower = page.evaluate("previewTest.variantPng('#3366aa',256)")
+        page.evaluate("png=>draftMock.clipboardImage=png",lower)
+        page.locator("#import-clipboard").click()
+        page.wait_for_function("png=>previewTest.draftState().edits.some(edit=>edit.png===png)&&previewTest.draftState().status.includes('Saved locally')",arg=lower)
+        assert not page.locator("#resize-image-dialog").is_visible()
+        assert page.locator("#texture-size").inner_text() == "256 × 256"
+        assert page.evaluate("""async ()=>{
+          const draft=draftMock.saved.get(previewTest.draftState().id),image=new Image();
+          image.src=draft.textures[0].png;await image.decode();
+          return image.width===256&&image.height===256;
+        }""")
+        print("PASS: 512-to-1024 upload, 512-to-256 clipboard, actual-size UV overlay, saved variant and draft reopening preserve resolution without resizing")
+
+        page.evaluate("""()=>{
+          draftMock.installConflicts=[{
+            path:'C:\\\\GMod\\\\addons\\\\skins\\\\materials\\\\test_custom.vtf',fingerprint:'reviewed-bytes',
+            installedPng:previewTest.variantPng('#cc3333'),replacementPng:previewTest.variantPng('#3366aa')
+          }];
+        }""")
+        installed_before = page.evaluate("draftMock.exports.length")
+        page.locator("#export-vtf").click()
+        page.locator("#overwrite-skin-dialog").wait_for(state="visible")
+        assert page.locator("#cancel-skin-overwrite").evaluate("button=>button===document.activeElement")
+        assert page.locator(".install-comparison img").count() == 2
+        assert page.locator(".install-comparison img").evaluate_all("images=>images[0].src!==images[1].src")
+        assert "Installed" in page.locator(".install-comparison h3").nth(0).inner_text()
+        assert "New" in page.locator(".install-comparison h3").nth(1).inner_text()
+        if args.screenshot:
+            page.locator("#overwrite-skin-dialog").screenshot(path=str(args.screenshot.with_name("skin-overwrite-confirmation.png")))
+        page.locator("#cancel-skin-overwrite").click()
+        assert page.evaluate("draftMock.exports.length") == installed_before
+        page.locator("#export-vtf").click()
+        page.locator('#overwrite-skin-dialog button[value="overwrite"]').click()
+        page.wait_for_function("count=>draftMock.exports.length===count+1",arg=installed_before)
+        assert page.evaluate("draftMock.lastInstallOverwrite[draftMock.installConflicts[0].path]") == "reviewed-bytes"
+        page.locator("#install-all").click()
+        page.locator("#overwrite-skin-dialog").wait_for(state="visible")
+        page.keyboard.press("Escape")
+        assert page.evaluate("draftMock.exports.length") == installed_before + 1
+        page.evaluate("draftMock.failOverwrite=true")
+        page.locator("#install-all").click()
+        page.locator('#overwrite-skin-dialog button[value="overwrite"]').click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('changed since confirmation')")
+        assert page.evaluate("draftMock.exports.length") == installed_before + 1
+        page.evaluate("draftMock.failOverwrite=false")
+        page.locator("#install-draft").click()
+        page.locator("#overwrite-skin-dialog").wait_for(state="visible")
+        page.locator('#overwrite-skin-dialog button[value="overwrite"]').click()
+        page.wait_for_function("draftMock.installed.has(previewTest.draftState().id)")
+        assert page.evaluate("draftMock.lastInstallPreview.id===previewTest.draftState().id")
+        assert page.evaluate("draftMock.lastInstallOverwrite[draftMock.installConflicts[0].path]") == "reviewed-bytes"
+        page.evaluate("draftMock.failInstallPreview=true")
+        page.locator("#export-vtf").click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('Could not read the installed skin')")
+        assert page.evaluate("draftMock.exports.length") == installed_before + 1
+        page.evaluate("draftMock.failInstallPreview=false;draftMock.installConflicts=[]")
+        print("PASS: existing/new VTF comparison, default Cancel/Escape, explicit approvals for active/all/saved installs, changed-file refusal and preflight errors")
+
+        page.evaluate("draftMock.installAffectedModels=['models/perpheads/weapons/c_ak101.mdl']")
+        installed_before = page.evaluate("draftMock.exports.length")
+        page.locator("#export-vtf").click()
+        page.locator("#overwrite-skin-dialog").wait_for(state="visible")
+        assert page.locator("#overwrite-skin-title").inner_text() == "Review skin installation"
+        assert page.locator("#skin-overwrite-warning").is_hidden()
+        assert page.locator("#install-affected-models li").count() == 1
+        assert page.locator("#install-affected-models li").get_attribute("title") == "models/perpheads/weapons/c_ak101.mdl"
+        assert page.locator("#confirm-skin-overwrite").inner_text() == "Install"
+        page.locator("#cancel-skin-overwrite").click()
+        assert page.evaluate("draftMock.exports.length") == installed_before
+        page.locator("#export-vtf").click()
+        page.locator("#confirm-skin-overwrite").click()
+        page.wait_for_function("count=>draftMock.exports.length===count+1",arg=installed_before)
+        assert page.evaluate("Object.keys(draftMock.lastInstallOverwrite).length") == 0
+        page.evaluate("draftMock.installAffectedModels=[]")
+        page.evaluate("draftMock.installImpactWarnings=['Could not determine effects for AK-101: installed VTF is unreadable']")
+        page.locator("#export-vtf").click()
+        page.locator("#overwrite-skin-dialog").wait_for(state="visible")
+        assert "could be confirmed" in page.locator("#install-affected-models").inner_text()
+        assert "installed VTF is unreadable" in page.locator("#install-impact-warnings").inner_text()
+        page.locator("#cancel-skin-overwrite").click()
+        page.evaluate("draftMock.installImpactWarnings=[]")
+        print("PASS: new installations review affected models without overwrite warnings; Cancel preserves files and Install accepts an empty overwrite set")
+
+        page.evaluate("""async ()=>{
+          await previewTest.open('models/perpheads/weapons/c_ak101.mdl');
+          await previewTest.setSlotAttachment('SLOT_STOCK','stock_ak101');
+          const fixture=previewTest.setupSharedComposition();
+          draftMock.combinedPng=null;
+          previewTest.editComponent(fixture.gun);
+        }""")
+        merge_source = page.evaluate("previewTest.compositionPng('#cc3333','#cc3333')")
+        page.locator("#png-input").set_input_files({"name":"merge-component.png","mimeType":"image/png","buffer":base64.b64decode(merge_source.split(",")[1])})
+        page.wait_for_function("previewTest.componentState().edits.some(edit=>edit.png===%s)&&previewTest.draftState().status.includes('Saved locally')" % json.dumps(merge_source))
+        page.evaluate("""()=>{
+          const path='C:\\\\GMod\\\\addons\\\\skins\\\\materials\\\\test_custom.vtf';
+          draftMock.installConflicts=[{path,fingerprint:'replace-entire-atlas',
+            installedPng:previewTest.compositionPng('#666666','#2255dd'),
+            replacementPng:previewTest.compositionPng('#cc3333','#666666')}];
+          draftMock.mergeConflicts=[{path,fingerprint:'reviewed-merged-atlas',
+            installedPng:previewTest.compositionPng('#666666','#2255dd'),
+            replacementPng:previewTest.compositionPng('#cc3333','#2255dd')}];
+          draftMock.installAffectedModels=['models/perpheads/weapons/c_ak101.mdl','models/perpheads/weapons/attachments/stock_ak101.mdl'];
+          draftMock.mergeAffectedModels=['models/perpheads/weapons/c_ak101.mdl'];
+        }""")
+        sources_before = page.evaluate("previewTest.componentState().edits")
+        page.locator("#export-vtf").click()
+        page.locator("#merge-component-install").wait_for(state="visible")
+        assert page.locator("#install-affected-models li").count() == 2
+        page.locator("#merge-component-install").click()
+        page.wait_for_function("document.getElementById('overwrite-skin-title').textContent.includes('merged')")
+        assert page.locator("#merge-component-install").is_hidden()
+        assert page.locator("#install-affected-models li").count() == 1
+        assert "stock" not in page.locator("#install-affected-models").inner_text()
+        assert "Merged" in page.locator(".install-comparison h3").nth(1).inner_text()
+        assert page.evaluate("draftMock.lastMergePreview.componentKeys.length") == 1
+        assert page.evaluate("draftMock.lastMergePreview.componentKeys[0].startsWith(previewTest.activePath()+':')")
+        assert page.locator(".install-comparison img").nth(1).get_attribute("src") == page.evaluate("draftMock.mergeConflicts[0].replacementPng")
+        if args.screenshot:
+            page.locator("#overwrite-skin-dialog").screenshot(path=str(args.screenshot.with_name("skin-merge-confirmation.png")))
+        page.locator("#cancel-skin-overwrite").click()
+        assert page.evaluate("draftMock.mergeInstalls||0") == 0
+        page.locator("#export-vtf").click()
+        page.locator("#merge-component-install").click()
+        page.wait_for_function("document.getElementById('overwrite-skin-title').textContent.includes('merged')")
+        page.locator("#confirm-skin-overwrite").click()
+        page.wait_for_function("draftMock.mergeInstalls===1")
+        page.wait_for_function("document.getElementById('toast').textContent.includes('Source drafts were kept unchanged')")
+        assert page.evaluate("draftMock.lastMergeInstall.overwrite[draftMock.mergeConflicts[0].path]") == "reviewed-merged-atlas"
+        assert page.evaluate("previewTest.componentState().edits") == sources_before
+        assert page.evaluate("draftMock.saved.get('merged-1').archivedFiles.length") == 1
+        page.evaluate("draftMock.failMerge=true")
+        page.locator("#export-vtf").click()
+        page.locator("#merge-component-install").click()
+        page.wait_for_function("document.getElementById('toast').textContent.includes('Merge blocked')")
+        assert page.evaluate("draftMock.mergeInstalls") == 1
+        page.evaluate("draftMock.failMerge=false")
+        page.locator("#install-all").click()
+        page.locator("#merge-component-install").click()
+        page.wait_for_function("document.getElementById('overwrite-skin-title').textContent.includes('merged')")
+        assert page.evaluate("draftMock.lastMergePreview.componentKeys===null")
+        page.locator("#confirm-skin-overwrite").click()
+        page.wait_for_function("draftMock.mergeInstalls===2")
+        page.locator("#install-draft").click()
+        page.locator("#merge-component-install").click()
+        page.wait_for_function("document.getElementById('overwrite-skin-title').textContent.includes('merged')")
+        page.locator("#confirm-skin-overwrite").click()
+        page.wait_for_function("draftMock.mergeInstalls===3")
+        page.evaluate("draftMock.installConflicts=[];draftMock.mergeConflicts=[];draftMock.installAffectedModels=[];draftMock.mergeAffectedModels=[]")
+        print("PASS: component merge option, merged-result review/cancel, scoped selection, protected-region errors, all/saved installs and unchanged component sources")
 
         if args.screenshot:
             for gun, sight, suffix in (("g36", "", "-g36"), ("m4a1", "", "-irons-up"), ("m4a1", "eotech", "-irons-down")):

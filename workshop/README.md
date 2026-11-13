@@ -34,8 +34,10 @@ redeploy to stop new uploads. No R2, paid Worker, larger runner or paid database
   public-repository GitHub-hosted runner. Uploaded data is parsed as JSON/PNG,
   never evaluated, executed, extracted as an archive or used in shell commands.
 - The validator strips metadata and private draft state, checks model/material
-  ownership and dimensions against the generated catalogue, bounds PNG
+  ownership and aspect ratio against the generated catalogue, requires power-of-two
+  texture dimensions up to 4096 pixels per side (not the original resolution), bounds PNG
   decompression, and substitutes a basic trusted material script.
+  Existing 4 MiB compressed PNG and 24 MiB submission limits still apply.
 - Only `skin.phskin` and `preview.png` may remain when the Worker publishes.
   Raw data is deleted first. The callback requires a separate secret; the Worker
   rechecks bans and submission state before exposing the catalogue entry.

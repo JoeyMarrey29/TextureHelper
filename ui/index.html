@@ -79,7 +79,7 @@
           <div class="button-row clipboard-buttons"><button id="copy-png" class="button secondary">Copy PNG to clipboard</button><button id="copy-overlay" class="button secondary">Copy UV overlay to clipboard</button></div>
           <label class="button primary upload wide">Import VMT / VTF, PNG or DDS<input type="file" id="png-input" accept="image/png,image/vnd-ms.dds,.dds,.vtf,.vmt" multiple hidden></label>
           <button id="import-clipboard" class="button secondary wide">Import from clipboard</button>
-          <p id="import-note" class="note">Import a PNG with the same dimensions to preview it on the model. First-person skins install using PERPHEADS' phcustomtextures method.</p>
+          <p id="import-note" class="note">Import a PNG with the same aspect ratio and supported power-of-two dimensions to preview it on the model. First-person skins install using PERPHEADS' phcustomtextures method.</p>
           <button id="export-vtf" class="button primary wide" disabled>Install custom skin</button>
           <button id="install-all" class="button secondary wide" disabled>Install all edited textures</button>
           <div class="file-detail"><span>VMT</span><code id="vmt-path">—</code></div>
@@ -157,6 +157,22 @@
           <button id="alpha-remove" class="button secondary" value="remove">Remove alpha</button>
           <button class="button secondary" value="cancel">Cancel</button>
         </div>
+      </form>
+    </dialog>
+    <dialog id="overwrite-skin-dialog" aria-labelledby="overwrite-skin-title">
+      <form method="dialog">
+        <h2 id="overwrite-skin-title">Replace installed skin?</h2>
+        <p id="skin-overwrite-warning" class="note">Different custom skin files are already installed at these paths. Continuing will overwrite them, including any components sharing the texture. Saved drafts and library textures are kept, but replaced game files are not automatically backed up.</p>
+        <section aria-labelledby="install-affected-title">
+          <h3 id="install-affected-title">Models that will change</h3>
+          <p class="note">Compared with currently installed skins, or original content when no skin is installed. Shared VTFs only count when pixels inside the model's UVs or its material settings change.</p>
+          <div id="install-affected-models"></div>
+          <div id="install-impact-warnings" role="status"></div>
+        </section>
+        <p class="note">VTF previews show RGB without alpha masks for visibility. Material-only changes show the VMT scripts instead. Installation uses the PERPHEADS phcustomtextures method.</p>
+        <p id="merge-install-note" class="note"></p>
+        <div id="overwrite-skin-files"></div>
+        <div class="button-row"><button id="cancel-skin-overwrite" value="cancel" class="button secondary">Cancel</button><button id="merge-component-install" value="merge" class="button secondary" hidden>Merge component textures</button><button id="confirm-skin-overwrite" value="overwrite" class="button primary">Replace entire texture</button></div>
       </form>
     </dialog>
     <dialog id="updates-dialog" aria-labelledby="updates-title">

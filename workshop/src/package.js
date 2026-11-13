@@ -13,7 +13,10 @@ export async function publicPackage(input) {
     const allowed = catalog.materials[`${texture.partPath}|${texture.vmtPath}`];
     if (!allowed || texture.vtfPath !== allowed.vtf || used.has(texture.vmtPath)) throw new Error('Unsupported or duplicate workshop material');
     const image = await sanitizePng(texture.png);
-    if (image.width !== allowed.width || image.height !== allowed.height) throw new Error('Texture dimensions do not match approved content');
+    if ((image.width & (image.width - 1)) !== 0 || (image.height & (image.height - 1)) !== 0
+      || image.width * allowed.height !== image.height * allowed.width) {
+      throw new Error('Textures require power-of-two dimensions with the approved aspect ratio');
+    }
     used.add(texture.vmtPath); owners.add(texture.partPath);
     textures.push({key:texture.vmtPath, partPath:texture.partPath, vmtPath:texture.vmtPath, vtfPath:allowed.vtf,
       vmtText:`VertexLitGeneric\n{\n "$basetexture" "${allowed.vtf.slice(10, -4)}"\n}\n`,

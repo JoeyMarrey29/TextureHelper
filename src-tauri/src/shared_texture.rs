@@ -89,17 +89,43 @@ fn rasterize_with_budget(uvs: &[f32], width: u32, height: u32, work: &mut u64) -
     Ok(mask)
 }
 
+pub(super) fn uv_pixels_differ(before: &image::RgbaImage, after: &image::RgbaImage, uvs: &[f32]) -> Result<bool, String> {
+    if before == after { return Ok(false); }
+    let width = before.width().max(after.width());
+    let height = before.height().max(after.height());
+    textures::validate_replacement_dimensions(width, height, before.width(), before.height())?;
+    textures::validate_replacement_dimensions(width, height, after.width(), after.height())?;
+    let mask = rasterize_with_budget(uvs, width, height, &mut 0)?;
+    Ok(mask.into_iter().enumerate().any(|(index, used)| {
+        if used == 0 { return false; }
+        let (x, y) = (index as u32 % width, index as u32 / width);
+        before.get_pixel(x * before.width() / width, y * before.height() / height)
+            != after.get_pixel(x * after.width() / width, y * after.height() / height)
+    }))
+}
+
 fn compose(mut output: image::RgbaImage, layers: &[Layer]) -> Result<CombinedTexture, String> {
-    let (width, height) = output.dimensions();
-    if layers.is_empty() || layers.len() > 32 || width == 0 || height == 0 || width > 4096 || height > 4096 {
+    if layers.is_empty() || layers.len() > 32 {
         return Err("Choose 1-32 components with texture dimensions up to 4096 x 4096".into());
     }
-    if layers.iter().any(|layer| layer.pixels.dimensions() != (width, height)) {
-        return Err("Every component texture must have the same dimensions as the shared VTF".into());
+    let (base_width, base_height) = output.dimensions();
+    textures::validate_replacement_dimensions(base_width, base_height, base_width, base_height)?;
+    let (mut width, mut height) = (base_width, base_height);
+    for layer in layers {
+        textures::validate_replacement_dimensions(layer.pixels.width(), layer.pixels.height(), base_width, base_height)?;
+        width = width.max(layer.pixels.width());
+        height = height.max(layer.pixels.height());
     }
     if width as u64 * height as u64 * layers.len() as u64 > 64 * 1024 * 1024 {
         return Err("Combined component textures exceed the 64-million-pixel working limit".into());
     }
+    if output.dimensions() != (width, height) {
+        output = image::imageops::resize(&output, width, height, image::imageops::FilterType::Nearest);
+    }
+    // Integer nearest-neighbour scaling preserves alpha and hidden RGB without allocating upscaled sources.
+    let sample = |source: &image::RgbaImage, x: u32, y: u32| {
+        *source.get_pixel(x * source.width() / width, y * source.height() / height)
+    };
     let count = width as usize * height as usize;
     let mut owner = vec![u8::MAX; count];
     let mut overlaps = vec![false; count];
@@ -113,13 +139,13 @@ fn compose(mut output: image::RgbaImage, layers: &[Layer]) -> Result<CombinedTex
             if *used == 0 { continue; }
             let x = index as u32 % width;
             let y = index as u32 / width;
-            let pixel = layer.pixels.get_pixel(x, y);
+            let pixel = sample(&layer.pixels, x, y);
             if owner[index] == u8::MAX {
                 owner[index] = layer_index as u8;
-                output.put_pixel(x, y, *pixel);
+                output.put_pixel(x, y, pixel);
             } else {
                 if !overlaps[index] { overlaps[index] = true; overlap_pixels += 1; }
-                if output.get_pixel(x, y) != pixel && conflicts.get_pixel(x, y)[3] == 0 {
+                if *output.get_pixel(x, y) != pixel && conflicts.get_pixel(x, y)[3] == 0 {
                     conflicts.put_pixel(x, y, image::Rgba([255, 0, 170, 255]));
                     conflict_pixels += 1;
                 }
@@ -144,7 +170,7 @@ fn compose(mut output: image::RgbaImage, layers: &[Layer]) -> Result<CombinedTex
                     }
                 }
             }
-            if let Some(source) = selected { padded.put_pixel(x, y, *layers[source as usize].pixels.get_pixel(x, y)); }
+            if let Some(source) = selected { padded.put_pixel(x, y, sample(&layers[source as usize].pixels, x, y)); }
         }
     }
     Ok(CombinedTexture {png:png(&padded)?, conflicts:if conflict_pixels > 0 { Some(png(&conflicts)?) } else { None },
@@ -162,9 +188,11 @@ pub async fn combine_shared_texture(
 
 fn combine(index: &ContentIndex, vtf_path: &str, base_png: &str, components: &[ComponentTexture]) -> Result<CombinedTexture, String> {
     if components.is_empty() || components.len() > 32 { return Err("Choose 1-32 components sharing one VTF".into()); }
+    let base = decode_png(base_png)?;
     let layers = {
         let mut layers = Vec::new();
         let mut seen = std::collections::HashSet::new();
+        let mut source_pixels = 0_u64;
         for component in components {
             if !seen.insert((component.part_path.clone(), component.material_index)) {
                 return Err("A component material was selected more than once".into());
@@ -172,13 +200,16 @@ fn combine(index: &ContentIndex, vtf_path: &str, base_png: &str, components: &[C
             let detail = build_model(&index, &component.part_path)?;
             let material = detail.materials.get(component.material_index).ok_or("Component material no longer exists")?;
             if material.vtf_path.as_deref() != Some(vtf_path) { return Err("Every component must use the selected shared VTF".into()); }
-            if material.width.unwrap_or(0) as u64 * material.height.unwrap_or(0) as u64
-                * (layers.len() + 1) as u64 > 64 * 1024 * 1024 {
-                return Err("Combined component textures exceed the 64-million-pixel working limit".into());
-            }
             let pixels = decode_png(&component.png)?;
-            if Some(pixels.width()) != material.width || Some(pixels.height()) != material.height {
-                return Err(format!("Texture dimensions do not match {}", component.part_path));
+            let (width, height) = (material.width.unwrap_or(0), material.height.unwrap_or(0));
+            textures::validate_replacement_dimensions(pixels.width(), pixels.height(), width, height)
+                .map_err(|error| format!("{}: {error}", component.part_path))?;
+            if layers.is_empty() {
+                textures::validate_replacement_dimensions(base.width(), base.height(), width, height)?;
+            }
+            source_pixels += pixels.width() as u64 * pixels.height() as u64;
+            if source_pixels > 64 * 1024 * 1024 {
+                return Err("Combined component textures exceed the 64-million-pixel working limit".into());
             }
             let uvs = detail.meshes.iter().filter(|mesh| mesh.material_index == component.material_index)
                 .flat_map(|mesh| mesh.uvs.iter().copied()).collect::<Vec<_>>();
@@ -187,7 +218,7 @@ fn combine(index: &ContentIndex, vtf_path: &str, base_png: &str, components: &[C
         }
         layers
     };
-    compose(decode_png(base_png)?, &layers)
+    compose(base, &layers)
 }
 
 pub(super) fn flatten_draft(index: &ContentIndex, draft: &drafts::Draft) -> Result<drafts::Draft, String> {
@@ -222,6 +253,95 @@ pub(super) fn flatten_draft(index: &ContentIndex, draft: &drafts::Draft) -> Resu
     Ok(output)
 }
 
+fn merge_regions(base: image::RgbaImage, layers: &[Layer], protected_uvs: &[Vec<f32>]) -> Result<image::RgbaImage, String> {
+    if layers.is_empty() || layers.len() > 32 { return Err("Choose 1-32 component sources to merge".into()); }
+    let (mut width, mut height) = base.dimensions();
+    textures::validate_replacement_dimensions(width, height, width, height)?;
+    for layer in layers {
+        textures::validate_replacement_dimensions(layer.pixels.width(), layer.pixels.height(), width, height)?;
+        width = width.max(layer.pixels.width());
+        height = height.max(layer.pixels.height());
+    }
+    if width as u64 * height as u64 * layers.len() as u64 > 64 * 1024 * 1024 {
+        return Err("Merged component textures exceed the 64-million-pixel working limit".into());
+    }
+    let mut output = if base.dimensions() == (width, height) { base }
+        else { image::imageops::resize(&base, width, height, image::imageops::FilterType::Nearest) };
+    let count = width as usize * height as usize;
+    let mut protected = vec![0_u8; count];
+    let mut work = 0;
+    for uvs in protected_uvs {
+        let mask = rasterize_with_budget(uvs, width, height, &mut work)?;
+        for (used, value) in protected.iter_mut().zip(mask) { *used |= value; }
+    }
+    let mut owners = vec![false; count];
+    let mut conflicts = 0;
+    for layer in layers {
+        let mask = rasterize_with_budget(&layer.uvs, width, height, &mut work)?;
+        for (index, used) in mask.into_iter().enumerate() {
+            if used == 0 { continue; }
+            let (x, y) = (index as u32 % width, index as u32 / width);
+            let pixel = *layer.pixels.get_pixel(x * layer.pixels.width() / width, y * layer.pixels.height() / height);
+            if (protected[index] != 0 || owners[index]) && *output.get_pixel(x, y) != pixel {
+                conflicts += 1;
+            } else {
+                output.put_pixel(x, y, pixel);
+                owners[index] = true;
+            }
+        }
+    }
+    if conflicts > 0 {
+        return Err(format!("Merge blocked: {conflicts} UV pixels conflict with another component. The installed skin was not changed. Use compatible textures or explicitly replace the entire atlas."));
+    }
+    // No padding: even neighbouring texels outside the selected UVs must retain the installed pixels.
+    Ok(output)
+}
+
+pub(super) fn merge_components(index: &ContentIndex, vtf: &str, base: image::RgbaImage,
+    components: &[ComponentTexture]) -> Result<String, String> {
+    let mut selected = std::collections::HashSet::new();
+    let mut layers = Vec::new();
+    for component in components {
+        let part_path = key(&component.part_path);
+        if !selected.insert((part_path.clone(), component.material_index)) { return Err("Duplicate merge component".into()); }
+        let detail = build_model(index, &part_path)?;
+        let material = detail.materials.get(component.material_index).ok_or("Merge component material is missing")?;
+        if material.vtf_path.as_deref() != Some(vtf) { return Err("Merge component uses a different VTF".into()); }
+        textures::validate_replacement_dimensions(base.width(), base.height(), material.width.unwrap_or(0), material.height.unwrap_or(0))?;
+        let pixels = decode_png(&component.png)?;
+        textures::validate_replacement_dimensions(pixels.width(), pixels.height(), material.width.unwrap_or(0), material.height.unwrap_or(0))?;
+        let uvs: Vec<_> = detail.meshes.iter().filter(|mesh| mesh.material_index == component.material_index)
+            .flat_map(|mesh| mesh.uvs.iter().copied()).collect();
+        if uvs.is_empty() { return Err(format!("{} has no UV geometry to merge", component.part_path)); }
+        layers.push(Layer {pixels, uvs});
+    }
+    let mut protected = Vec::new();
+    let texture_re = Regex::new(r#"(?im)^\s*"?\$basetexture"?\s+(?:"([^"\r\n]+)"|([^"\s]+))"#).unwrap();
+    for (path, source) in index.files.iter().filter(|(path, _)| path.ends_with(".mdl") && is_skin_target_model(path)) {
+        let mdl = model::mdl::read_mdl_bytes(&source.read()?).map_err(|error| format!("Could not inspect {path}: {error}"))?;
+        let mut uses_vtf = false;
+        for texture in &mdl.textures {
+            let material = material_candidates(&texture.name, &mdl.cd_texture_paths).into_iter()
+                .find_map(|candidate| find(index, &candidate));
+            let Some(material) = material else { continue; };
+            let text = String::from_utf8(material.read()?).map_err(|error| error.to_string())?;
+            if texture_re.captures(&text).and_then(|capture| capture.get(1).or_else(|| capture.get(2)))
+                .is_some_and(|reference| key(&base_texture_path(reference.as_str())) == vtf) {
+                uses_vtf = true; break;
+            }
+        }
+        if !uses_vtf { continue; }
+        let detail = build_model(index, path)?;
+        for (material_index, material) in detail.materials.iter().enumerate() {
+            if material.vtf_path.as_deref() != Some(vtf) || selected.contains(&(key(path), material_index)) { continue; }
+            let uvs = detail.meshes.iter().filter(|mesh| mesh.material_index == material_index)
+                .flat_map(|mesh| mesh.uvs.iter().copied()).collect::<Vec<_>>();
+            if !uvs.is_empty() { protected.push(uvs); }
+        }
+    }
+    png(&merge_regions(base, &layers, &protected)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -232,6 +352,21 @@ mod tests {
 
     fn layer(color: [u8; 4], uvs: Vec<f32>) -> Layer {
         Layer {pixels:image::RgbaImage::from_pixel(16, 8, image::Rgba(color)), uvs}
+    }
+
+    #[test]
+    fn install_impact_compares_only_used_uv_pixels_at_normalized_resolutions() {
+        let before = image::RgbaImage::from_pixel(16, 8, image::Rgba([5, 6, 7, 42]));
+        let mut after = image::RgbaImage::from_pixel(32, 16, image::Rgba([5, 6, 7, 42]));
+        assert!(!uv_pixels_differ(&before, &after, &rectangle(0., 1.)).unwrap());
+        after.put_pixel(28, 8, image::Rgba([20, 30, 40, 42]));
+        assert!(!uv_pixels_differ(&before, &after, &rectangle(0., 0.25)).unwrap());
+        assert!(uv_pixels_differ(&before, &after, &rectangle(0.75, 1.)).unwrap());
+        assert!(uv_pixels_differ(&before, &after, &rectangle(1.75, 2.)).unwrap());
+        after.put_pixel(28, 8, image::Rgba([5, 6, 7, 0]));
+        assert!(uv_pixels_differ(&before, &after, &rectangle(0.75, 1.)).unwrap(), "Alpha-only changes count");
+        assert!(!uv_pixels_differ(&before, &after, &[]).unwrap());
+        assert!(uv_pixels_differ(&before, &after, &[f32::NAN; 6]).is_err());
     }
 
     #[test]
@@ -246,6 +381,69 @@ mod tests {
         assert_eq!(image.get_pixel(14, 4).0, [20, 50, 210, 170]);
         assert_eq!(image.get_pixel(7, 4).0, [5, 6, 7, 255]);
         assert_eq!(image.get_pixel(4, 4).0, [200, 30, 40, 0]);
+    }
+
+    #[test]
+    fn install_merge_preserves_unselected_pixels_and_blocks_other_component_uv_conflicts() {
+        let base = image::RgbaImage::from_pixel(16, 8, image::Rgba([5, 6, 7, 42]));
+        let incoming = Layer {pixels:image::RgbaImage::from_pixel(32, 16, image::Rgba([200, 30, 40, 0])),
+            uvs:rectangle(0., 0.25)};
+        let merged = merge_regions(base.clone(), &[incoming], &[rectangle(0.75, 1.)]).unwrap();
+        assert_eq!(merged.dimensions(), (32, 16));
+        for y in 0..16 {
+            for x in 0..32 {
+                assert_eq!(merged.get_pixel(x, y).0, if x < 8 { [200, 30, 40, 0] } else { [5, 6, 7, 42] });
+            }
+        }
+        let overlapping = Layer {pixels:image::RgbaImage::from_pixel(32, 16, image::Rgba([200, 30, 40, 0])),
+            uvs:rectangle(0., 0.75)};
+        assert!(merge_regions(base.clone(), &[overlapping], &[rectangle(0.5, 1.)]).unwrap_err().contains("Merge blocked"));
+        let identical = layer([5, 6, 7, 42], rectangle(0., 1.));
+        assert_eq!(merge_regions(base.clone(), &[identical], &[rectangle(0., 1.)]).unwrap(), base);
+        assert!(merge_regions(base.clone(), &[
+            layer([200, 0, 0, 255], rectangle(0., 0.5)),
+            layer([0, 200, 0, 255], rectangle(0., 0.5)),
+        ], &[]).is_err());
+        let high = image::RgbaImage::from_pixel(64, 32, image::Rgba([9, 8, 7, 0]));
+        let result = merge_regions(high, &[layer([4, 3, 2, 1], rectangle(0., 0.25))], &[]).unwrap();
+        assert_eq!(result.dimensions(), (64, 32));
+        assert_eq!(result.get_pixel(63, 31).0, [9, 8, 7, 0]);
+    }
+
+    #[test]
+    fn mixed_resolutions_use_largest_source_and_preserve_rgba_and_uv_positions() {
+        let base = image::RgbaImage::from_pixel(16, 8, image::Rgba([5, 6, 7, 255]));
+        let mut small = image::RgbaImage::from_pixel(8, 4, image::Rgba([200, 30, 40, 0]));
+        small.put_pixel(1, 2, image::Rgba([17, 18, 19, 70]));
+        let mut large = image::RgbaImage::from_pixel(32, 16, image::Rgba([20, 50, 210, 170]));
+        large.put_pixel(30, 8, image::Rgba([9, 8, 7, 6]));
+        let result = compose(base, &[
+            Layer {pixels:small.clone(), uvs:rectangle(0., 0.25)},
+            Layer {pixels:large.clone(), uvs:rectangle(0.75, 1.)},
+        ]).unwrap();
+        assert_eq!(result.conflict_pixels, 0);
+        let image = decode_png(&result.png).unwrap();
+        assert_eq!(image.dimensions(), (32, 16));
+        assert_eq!(image.get_pixel(0, 8).0, [200, 30, 40, 0]);
+        assert_eq!(image.get_pixel(4, 8).0, [17, 18, 19, 70]);
+        assert_eq!(image.get_pixel(30, 8).0, [9, 8, 7, 6]);
+        assert_eq!(image.get_pixel(16, 8).0, [5, 6, 7, 255]);
+        let high_base = compose(image::RgbaImage::new(64, 32),
+            &[Layer {pixels:small.clone(), uvs:rectangle(0., 1.)}]).unwrap();
+        assert_eq!(decode_png(&high_base.png).unwrap().dimensions(), (64, 32));
+        let upscaled = image::imageops::resize(&small, 32, 16, image::imageops::FilterType::Nearest);
+        let identical = compose(image::RgbaImage::new(16, 8), &[
+            Layer {pixels:small.clone(), uvs:rectangle(0., 1.)},
+            Layer {pixels:upscaled, uvs:rectangle(0., 1.)},
+        ]).unwrap();
+        assert_eq!(identical.conflict_pixels, 0);
+        let conflict = compose(image::RgbaImage::new(16, 8), &[
+            Layer {pixels:small, uvs:rectangle(0., 1.)},
+            Layer {pixels:large, uvs:rectangle(0.5, 1.)},
+        ]).unwrap();
+        assert_eq!(conflict.conflict_pixels, 16 * 16);
+        let vtf = encode_vtf(&DynamicImage::ImageRgba8(image.clone())).unwrap();
+        assert_eq!(vtf_decode::decode_highres(&vtf).unwrap().to_rgba8(), image);
     }
 
     #[test]

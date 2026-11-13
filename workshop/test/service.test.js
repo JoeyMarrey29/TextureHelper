@@ -60,7 +60,7 @@ test('valid PNGs survive sanitizing but metadata does not', async () => {
   assert.ok(!Buffer.from(result.bytes).includes(Buffer.from('private metadata')));
   const second = await sanitizePng(base64(result.bytes));
   assert.deepEqual(second.bytes, result.bytes);
-  for (const bytes of [makePng(2049, 1), makePng(1, 1, {filter:5}),
+  for (const bytes of [makePng(4097, 1), makePng(1, 1, {filter:5}),
     makePng(1, 1, {decodedLength:100}), makePng().subarray(0, -1), Buffer.concat([makePng(), Buffer.of(0)])]) {
     await assert.rejects(() => sanitizePng(bytes.toString('base64')));
   }
@@ -81,10 +81,29 @@ test('publication reconstructs a minimal trusted package and rejects forged owne
     input => input.draft.modelPath = '__proto__',
     input => input.draft.slotSelections = {__proto__:null, constructor:null},
     input => input.draft.archivedFiles = [{path:'evil.exe'}],
-    input => input.draft.textures[0].png = makePng(1, 1).toString('base64')
+    input => input.draft.textures[0].png = makePng(3, 3).toString('base64')
   ]) {
     const forged = structuredClone(input); mutate(forged);
     await assert.rejects(() => publicPackage(forged));
+  }
+});
+
+test('publication allows higher and lower same-ratio resolutions but rejects invalid sizes', async () => {
+  const input = submission();
+  const texture = input.draft.textures[0];
+  const material = catalog.materials[`${texture.partPath}|${texture.vmtPath}`];
+  const scale = 4096 / Math.max(material.width, material.height);
+  const width = material.width * scale, height = material.height * scale;
+  for (const [w, h] of [[width, height], [width / 2, height / 2],
+    [material.width / 2, material.height / 2]]) {
+    texture.png = makePng(w, h).toString('base64');
+    const result = await publicPackage(input);
+    const image = await sanitizePng(result.draft.textures[0].png);
+    assert.equal(image.width, w); assert.equal(image.height, h);
+  }
+  for (const [w, h] of [[width, height / 2], [3, 3], [8192, 1]]) {
+    texture.png = makePng(w, h).toString('base64');
+    await assert.rejects(() => publicPackage(input));
   }
 });
 

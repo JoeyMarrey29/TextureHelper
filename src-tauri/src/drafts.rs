@@ -701,9 +701,9 @@ fn editable_installed_at(root: &Path, index: &ContentIndex, id: &str, model_path
         let bytes = fs::read(skin.vtf_path.as_ref().ok_or("Installed texture is missing")?)
             .map_err(|error| error.to_string())?;
         let image = vtf_decode::decode_highres(&bytes).map_err(|error| format!("Could not decode installed {vmt}: {error}"))?;
-        if Some(image.width()) != material.width || Some(image.height()) != material.height {
-            return Err(format!("Installed {vmt} has different dimensions from the original model texture"));
-        }
+        textures::validate_replacement_dimensions(image.width(), image.height(),
+            material.width.unwrap_or(0), material.height.unwrap_or(0))
+            .map_err(|error| format!("Installed {vmt}: {error}"))?;
         let mut png = Cursor::new(Vec::new());
         image.write_to(&mut png, ImageFormat::Png).map_err(|error| error.to_string())?;
         let texture = DraftTexture {key:vmt.clone(), part_path:model_path.into(), vmt_path:Some(vmt.clone()),
@@ -761,64 +761,444 @@ pub fn archive_custom_skin(id: String, app: tauri::AppHandle, state: State<'_, A
     Ok(())
 }
 
-fn restore_at(draft: &Draft, install: &Path) -> Result<(), String> {
-    let files = if draft.archived_files.is_empty() {
+fn install_files(draft: &Draft) -> Result<Vec<SavedFile>, String> {
+    if draft.archived_files.is_empty() {
         draft.textures.iter().filter(|texture| supported(texture))
-            .map(expected_files).collect::<Result<Vec<_>, _>>()?.into_iter().flatten().collect()
-    } else { draft.archived_files.clone() };
+            .map(expected_files).collect::<Result<Vec<_>, _>>().map(|files| files.into_iter().flatten().collect())
+    } else { Ok(draft.archived_files.clone()) }
+}
+
+fn export_files(skins: &[SkinExport]) -> Result<Vec<SavedFile>, String> {
+    let mut files = Vec::new();
+    let mut materials = std::collections::HashSet::new();
+    for skin in skins {
+        let vmt = key(&skin.vmt_path);
+        if !materials.insert(vmt.clone()) { return Err("Duplicate material selected for installation".into()); }
+        files.extend(expected_files(&DraftTexture {key:vmt.clone(), part_path:String::new(),
+            vmt_path:Some(vmt), vtf_path:Some(key(&skin.material_path)), vmt_text:Some(skin.vmt_text.clone()),
+            png:skin.png_base64.clone(), strip_alpha:skin.strip_alpha})?);
+    }
+    Ok(files)
+}
+
+fn installation_targets(files: &[SavedFile], install: &Path) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
     if files.is_empty() { return Err("No supported textures to install in this draft".into()); }
     if !install.join("addons").is_dir() || !install.join("data").is_dir() {
         return Err("Choose your Garry's Mod folder first".into());
     }
-    let mut pending = BTreeMap::new();
-    for file in &files {
+    let mut targets = BTreeMap::new();
+    for file in files {
         let target = file_target(install, file)?;
         let bytes = STANDARD.decode(&file.bytes).map_err(|error| error.to_string())?;
-        if target.exists() {
-            if fs::read(&target).map_err(|error| error.to_string())? != bytes {
-                return Err(format!("Another skin already exists at {}", target.display()));
-            }
-        } else if let Some(other) = pending.insert(target, bytes.clone()) {
+        if let Some(other) = targets.insert(target, bytes.clone()) {
             if other != bytes { return Err("Saved textures conflict at the same installation path".into()); }
         }
     }
+    Ok(targets)
+}
+
+fn overwrite_fingerprint(path: &Path, installed: &[u8], replacement: &[u8]) -> String {
+    let mut hash = Sha256::new();
+    for bytes in [path.to_string_lossy().as_bytes(), installed, replacement] {
+        hash.update((bytes.len() as u64).to_le_bytes());
+        hash.update(bytes);
+    }
+    format!("{:x}", hash.finalize())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallConflict {
+    path: String,
+    fingerprint: String,
+    installed_png: Option<String>,
+    replacement_png: Option<String>,
+    installed_text: Option<String>,
+    replacement_text: Option<String>,
+    warning: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallReview {
+    conflicts: Vec<InstallConflict>,
+    affected_models: Vec<String>,
+    warnings: Vec<String>,
+}
+
+fn material_settings(text: &str) -> Vec<String> {
+    let tokens = Regex::new(r#"//[^\r\n]*|/\*[\s\S]*?\*/|"([^"]*)"|([^\s"{}]+)|([{}])"#).unwrap();
+    let mut result = Vec::new();
+    let mut skip_reference = false;
+    for token in tokens.captures_iter(text).filter_map(|capture|
+        capture.get(1).or_else(|| capture.get(2)).or_else(|| capture.get(3)).map(|token| key(token.as_str()))) {
+        if skip_reference { skip_reference = false; continue; }
+        if token == "$basetexture" { skip_reference = true; continue; }
+        result.push(token);
+    }
+    result
+}
+
+fn install_affected_models(files: &[SavedFile], index: &ContentIndex, install: &Path) -> Result<(Vec<String>, Vec<String>), String> {
+    let targets = installation_targets(files, install)?;
+    let mut users = BTreeMap::<String, std::collections::BTreeSet<String>>::new();
+    for (path, source) in index.files.iter().filter(|(path, _)| path.ends_with(".mdl") && is_skin_target_model(path)) {
+        let mdl = model::mdl::read_mdl_bytes(&source.read()?)
+            .map_err(|error| format!("Could not review {path}: {error}"))?;
+        for texture in &mdl.textures {
+            let material = material_candidates(&texture.name, &mdl.cd_texture_paths).into_iter()
+                .find(|candidate| find(index, candidate).is_some());
+            if let Some(material) = material.filter(|material| is_skin_material_path(material)) {
+                users.entry(key(&material)).or_default().insert(path.clone());
+            }
+        }
+    }
+    let mut affected = std::collections::BTreeSet::new();
+    let mut warnings = Vec::new();
+    for (vmt, models) in users {
+        let target = file_target(install, &SavedFile {root:"vmt".into(),
+            relative:vmt.trim_start_matches("materials/").into(), bytes:String::new()})?;
+        if !target.exists() && !targets.contains_key(&target) { continue; }
+        let before = if target.exists() { fs::read(&target).map_err(|error| error.to_string())? }
+            else { find(index, &vmt).ok_or("Original material is not indexed")?.read()? };
+        let after = targets.get(&target).unwrap_or(&before);
+        let before_text = std::str::from_utf8(&before).map_err(|error| format!("Cannot review {vmt}: {error}"))?;
+        let after_text = std::str::from_utf8(after).map_err(|error| format!("Cannot review {vmt}: {error}"))?;
+        let references = textures::texture_reference(before_text).and_then(|before|
+            textures::texture_reference(after_text).map(|after| (before, after)));
+        let (before_reference, after_reference) = match references {
+            Ok(references) => references,
+            Err(error) => {
+                warnings.push(format!("Could not determine effects for {} ({vmt}): {error}", models.iter().cloned().collect::<Vec<_>>().join(", ")));
+                continue;
+            }
+        };
+        let texture_target = |reference: &str| file_target(install, &SavedFile {root:"vtf".into(),
+            relative:reference.trim_start_matches("materials/").into(), bytes:String::new()});
+        let before_target = texture_target(&before_reference)?;
+        let after_target = texture_target(&after_reference)?;
+        if before == *after && !targets.contains_key(&before_target) && !targets.contains_key(&after_target) { continue; }
+        let settings_changed = material_settings(before_text) != material_settings(after_text);
+        let read_texture = |reference: &str, path: &Path, pending: bool| -> Result<image::RgbaImage, String> {
+            let bytes = if let Some(bytes) = targets.get(path).filter(|_| pending) { bytes.clone() }
+                else if path.exists() { fs::read(path).map_err(|error| error.to_string())? }
+                else { find(index, reference).ok_or_else(|| format!("Cannot review missing texture {reference}"))?.read()? };
+            textures::decode_texture(&bytes).map(|image| image.to_rgba8())
+                .map_err(|error| format!("Cannot review {reference}: {error}"))
+        };
+        let images = if settings_changed { None } else {
+            match read_texture(&before_reference, &before_target, false).and_then(|before|
+                read_texture(&after_reference, &after_target, true).map(|after| (before, after))) {
+                Ok(images) => Some(images),
+                Err(error) => {
+                    warnings.push(format!("Could not determine effects for {} ({vmt}): {error}", models.iter().cloned().collect::<Vec<_>>().join(", ")));
+                    continue;
+                }
+            }
+        };
+        for path in models {
+            if affected.contains(&path) { continue; }
+            let detail = build_model(index, &path).map_err(|error| format!("Could not review {path}: {error}"))?;
+            for (material_index, material) in detail.materials.iter().enumerate() {
+                if material.vmt_path.as_deref() != Some(&vmt) { continue; }
+                let uvs = detail.meshes.iter().filter(|mesh| mesh.material_index == material_index)
+                    .flat_map(|mesh| mesh.uvs.iter().copied()).collect::<Vec<_>>();
+                let pixels_changed = if let Some((before, after)) = &images {
+                    shared_texture::uv_pixels_differ(before, after, &uvs)?
+                } else { false };
+                if !uvs.is_empty() && (settings_changed || pixels_changed) {
+                    affected.insert(path.clone());
+                    break;
+                }
+            }
+        }
+    }
+    Ok((affected.into_iter().collect(), warnings))
+}
+
+fn install_review(files: &[SavedFile], index: &ContentIndex, install: &Path) -> Result<InstallReview, String> {
+    let (affected_models, warnings) = install_affected_models(files, index, install)?;
+    Ok(InstallReview {conflicts:install_conflicts(files, install)?, affected_models, warnings})
+}
+
+fn install_preview(bytes: &[u8]) -> Result<String, String> {
+    let mut pixels = textures::decode_texture(bytes)?.to_rgba8();
+    for pixel in pixels.pixels_mut() { pixel[3] = 255; }
+    let image = DynamicImage::ImageRgba8(pixels).thumbnail(320, 320);
+    let mut png = Cursor::new(Vec::new());
+    image.write_to(&mut png, ImageFormat::Png).map_err(|error| error.to_string())?;
+    Ok(format!("data:image/png;base64,{}", STANDARD.encode(png.into_inner())))
+}
+
+fn install_conflicts(files: &[SavedFile], install: &Path) -> Result<Vec<InstallConflict>, String> {
+    let mut conflicts = Vec::new();
+    for (path, replacement) in installation_targets(files, install)? {
+        if !path.exists() { continue; }
+        let installed = fs::read(&path).map_err(|error| error.to_string())?;
+        if installed == replacement { continue; }
+        let mut conflict = InstallConflict {path:path.display().to_string(),
+            fingerprint:overwrite_fingerprint(&path, &installed, &replacement),
+            installed_png:None, replacement_png:None, installed_text:None, replacement_text:None, warning:None};
+        if path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("vtf")) {
+            let mut warnings = Vec::new();
+            match install_preview(&installed) {
+                Ok(png) => conflict.installed_png = Some(png),
+                Err(error) => warnings.push(format!("Installed VTF preview unavailable: {error}")),
+            }
+            match install_preview(&replacement) {
+                Ok(png) => conflict.replacement_png = Some(png),
+                Err(error) => warnings.push(format!("Replacement VTF preview unavailable: {error}")),
+            }
+            if !warnings.is_empty() { conflict.warning = Some(warnings.join("\n")); }
+        } else {
+            conflict.installed_text = Some(String::from_utf8_lossy(&installed).into_owned());
+            conflict.replacement_text = Some(String::from_utf8_lossy(&replacement).into_owned());
+        }
+        conflicts.push(conflict);
+    }
+    Ok(conflicts)
+}
+
+fn install_output(root: &Path, id: &str, choices: Option<&BTreeMap<String, bool>>, index: &ContentIndex) -> Result<(Draft, Draft), String> {
+    let mut draft = read_at(root, id)?;
+    if let Some(choices) = choices {
+        for texture in &mut draft.textures {
+            if let Some(choice) = texture.vtf_path.as_ref().and_then(|path| choices.get(path)) { texture.strip_alpha = *choice; }
+        }
+    }
+    let output = shared_texture::flatten_draft(index, &draft)?;
+    Ok((draft, output))
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ComponentMergeRequest {
+    id: String,
+    vtf_paths: Vec<String>,
+    component_keys: Option<Vec<String>>,
+    alpha_choices: BTreeMap<String, bool>,
+}
+
+fn component_merge_files(draft: &Draft, request: &ComponentMergeRequest, index: &ContentIndex, install: &Path) -> Result<Vec<SavedFile>, String> {
+    if !draft.archived_files.is_empty() || draft.component_textures.is_empty() {
+        return Err("Merge requires an editable draft with individual component assignments; flattened VTFs and backups can only replace the entire texture".into());
+    }
+    let mut groups = BTreeMap::<String, Vec<shared_texture::ComponentTexture>>::new();
+    let mut found = std::collections::HashSet::new();
+    for component in &draft.component_textures {
+        let component_key = format!("{}:{}", component.part_path, component.material_index);
+        if request.component_keys.as_ref().is_some_and(|keys| !keys.contains(&component_key)) { continue; }
+        let detail = build_model(index, &component.part_path)?;
+        let material = detail.materials.get(component.material_index).ok_or("Merge component material is missing")?;
+        let vtf = material.vtf_path.as_ref().ok_or("Merge component has no original VTF")?;
+        if !request.vtf_paths.contains(vtf) { continue; }
+        if request.component_keys.is_none() {
+            let original = material.image.as_ref().ok_or("Merge component has no original texture for comparison")?;
+            if textures::decode_texture(&png_bytes(original)?)?.to_rgba8()
+                == textures::decode_texture(&png_bytes(&component.png)?)?.to_rgba8() { continue; }
+        }
+        found.insert(component_key);
+        let mut source = component.clone();
+        if request.alpha_choices.get(vtf) == Some(&true) {
+            let mut image = textures::decode_texture(&png_bytes(&source.png)?)?.to_rgba8();
+            for pixel in image.pixels_mut() { pixel[3] = 255; }
+            let mut png = Cursor::new(Vec::new());
+            image.write_to(&mut png, ImageFormat::Png).map_err(|error| error.to_string())?;
+            source.png = format!("data:image/png;base64,{}", STANDARD.encode(png.into_inner()));
+        }
+        groups.entry(vtf.clone()).or_default().push(source);
+    }
+    if request.component_keys.as_ref().is_some_and(|keys| keys.is_empty() || keys.iter().any(|key| !found.contains(key))) {
+        return Err("The selected merge component changed or is no longer in this draft".into());
+    }
+    if groups.is_empty() { return Err("No changed component assignments are available to merge for these textures".into()); }
+    if request.vtf_paths.iter().any(|vtf| !groups.contains_key(vtf)) {
+        return Err("Merge is only available for component-scoped textures. Install shared-only edits separately, or choose Replace entire texture.".into());
+    }
+    let mut files = Vec::new();
+    for (vtf, components) in groups {
+        let detail = build_model(index, &components[0].part_path)?;
+        let material = &detail.materials[components[0].material_index];
+        let template = draft.textures.iter().find(|texture| texture.vtf_path.as_ref() == Some(&vtf))
+            .ok_or("Merge component has no shared draft texture")?;
+        let relative = format!("{}_custom.vtf", vtf.trim_start_matches("materials/").trim_end_matches(".vtf"));
+        let target = file_target(install, &SavedFile {root:"vtf".into(), relative:relative.clone(), bytes:String::new()})?;
+        let base = if target.exists() { textures::decode_texture(&fs::read(&target).map_err(|error| error.to_string())?)?.to_rgba8() }
+            else { textures::decode_texture(&png_bytes(material.image.as_ref().ok_or("Merge has no original base texture")?)?)?.to_rgba8() };
+        let png = shared_texture::merge_components(index, &vtf, base, &components)?;
+        let mut texture = template.clone();
+        texture.png = png;
+        // Strip alpha only inside imported sources, never across preserved installed regions.
+        texture.strip_alpha = false;
+        let image = textures::decode_texture(&png_bytes(&texture.png)?)?;
+        files.push(SavedFile {root:"vtf".into(), relative:relative.clone(), bytes:STANDARD.encode(encode_skin_vtf(&image, false)?)});
+        for component in &components {
+            let detail = build_model(index, &component.part_path)?;
+            let material = &detail.materials[component.material_index];
+            texture.vmt_path = material.vmt_path.clone();
+            let vmt = texture.vmt_path.as_ref().ok_or("Merge component has no VMT")?;
+            texture.vmt_text = draft.textures.iter().find(|other| other.vmt_path.as_ref() == Some(vmt))
+                .and_then(|other| other.vmt_text.clone()).or_else(|| material.vmt_text.clone());
+            let expected = expected_files(&texture)?.into_iter().find(|file| file.root == "vmt").unwrap();
+            let target = file_target(install, &expected)?;
+            if target.exists() {
+                let text = fs::read_to_string(&target).map_err(|error| error.to_string())?;
+                if textures::texture_reference(&text)? != format!("materials/{relative}") {
+                    return Err(format!("{} points to another VTF; merge cannot safely change this material mapping", target.display()));
+                }
+                files.push(SavedFile {bytes:STANDARD.encode(text.as_bytes()), ..expected});
+            } else { files.push(expected); }
+        }
+    }
+    let mut unique = BTreeMap::new();
+    for file in files {
+        let id = (file.root.clone(), file.relative.clone());
+        if let Some(previous) = unique.insert(id, file.clone()) {
+            if previous.bytes != file.bytes { return Err("Merged materials conflict at the same path".into()); }
+        }
+    }
+    Ok(unique.into_values().collect())
+}
+
+fn prepared_component_merge(root: &Path, request: &ComponentMergeRequest, index: &ContentIndex, install: &Path) -> Result<Vec<SavedFile>, String> {
+    component_merge_files(&read_at(root, &request.id)?, request, index, install)
+}
+
+#[tauri::command]
+pub async fn preview_component_merge(request: ComponentMergeRequest, app: tauri::AppHandle, state: State<'_, AppState>) -> Result<InstallReview, String> {
+    let index = state.0.lock().map_err(|_| "Index lock failed")?.clone();
+    let install = index.install_root.clone().ok_or("Choose your Garry's Mod folder first")?;
+    let root = storage(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        install_review(&prepared_component_merge(&root, &request, &index, &install)?, &index, &install)
+    }).await.map_err(|error| format!("Merge preview failed: {error}"))?
+}
+
+#[tauri::command]
+pub async fn install_component_merge(request: ComponentMergeRequest, overwrite: BTreeMap<String, String>,
+    app: tauri::AppHandle, state: State<'_, AppState>) -> Result<String, String> {
+    let index = state.0.lock().map_err(|_| "Index lock failed")?.clone();
+    let install = index.install_root.clone().ok_or("Choose your Garry's Mod folder first")?;
+    let root = storage(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let files = prepared_component_merge(&root, &request, &index, &install)?;
+        save_and_install_merge(&root, &request.id, files, &install, &overwrite)
+    }).await.map_err(|error| format!("Component installation failed: {error}"))?
+}
+
+fn save_and_install_merge(root: &Path, source_id: &str, files: Vec<SavedFile>, install: &Path,
+    overwrite: &BTreeMap<String, String>) -> Result<String, String> {
+    for conflict in install_conflicts(&files, install)? {
+        if overwrite.get(&conflict.path) != Some(&conflict.fingerprint) {
+            return Err("Installed files or the merged result changed since review. Review the merge again.".into());
+        }
+    }
+    let mut snapshot = read_at(root, source_id)?;
+    snapshot.id = None;
+    snapshot.name = format!("{} - merged installation", snapshot.name);
+    snapshot.textures.clear();
+    snapshot.component_textures.clear();
+    snapshot.component_error = None;
+    snapshot.ai_originals.clear();
+    snapshot.archived_files = files;
+    let saved = save_at(root, snapshot)?;
+    if let Err(error) = restore_files_at(&saved.archived_files, install, overwrite) {
+        return Err(format!("{error}\nThe merged copy was saved locally as \"{}\" but installation did not complete.", saved.name));
+    }
+    Ok(saved.name)
+}
+
+#[tauri::command]
+pub async fn preview_skin_install(id: Option<String>, skins: Option<Vec<SkinExport>>, alpha_choices: Option<BTreeMap<String, bool>>,
+    app: tauri::AppHandle, state: State<'_, AppState>) -> Result<InstallReview, String> {
+    let index = state.0.lock().map_err(|_| "Index lock failed")?.clone();
+    let install = index.install_root.clone()
+        .or_else(|| rfd::FileDialog::new().set_title("Choose the garrysmod folder for installation").pick_folder())
+        .ok_or("Export cancelled")?;
+    let root = storage(&app)?;
+    let destination = install.clone();
+    let review = tauri::async_runtime::spawn_blocking(move || {
+        let files = match (id, skins) {
+            (Some(id), None) => {
+                let (_, output) = install_output(&root, &id, alpha_choices.as_ref(), &index)?;
+                install_files(&output)?
+            }
+            (None, Some(skins)) => export_files(&skins)?,
+            _ => return Err("Choose either a saved skin or edited textures for installation".into()),
+        };
+        install_review(&files, &index, &destination)
+    }).await.map_err(|error| format!("Install review failed: {error}"))??;
+    state.0.lock().map_err(|_| "Index lock failed")?.install_root = Some(install);
+    Ok(review)
+}
+
+fn restore_files_at(files: &[SavedFile], install: &Path, overwrite: &BTreeMap<String, String>) -> Result<(), String> {
     let mut prepared = Vec::new();
-    for (target, bytes) in pending {
+    for (target, bytes) in installation_targets(files, install)? {
+        let previous = if target.exists() { Some(fs::read(&target).map_err(|error| error.to_string())?) } else { None };
+        if previous.as_ref() == Some(&bytes) { continue; }
+        if let Some(previous) = &previous {
+            if overwrite.get(&target.display().to_string()) != Some(&overwrite_fingerprint(&target, previous, &bytes)) {
+                return Err(format!("Another skin already exists at {}. Review and confirm the replacement; files may have changed since confirmation.", target.display()));
+            }
+        }
         fs::create_dir_all(target.parent().ok_or("Invalid saved skin path")?).map_err(|error| error.to_string())?;
         let mut file = tempfile::NamedTempFile::new_in(target.parent().unwrap()).map_err(|error| error.to_string())?;
         file.write_all(&bytes).map_err(|error| error.to_string())?;
         file.as_file().sync_all().map_err(|error| error.to_string())?;
-        prepared.push((target, file));
+        prepared.push((target, file, previous, bytes));
     }
-    let mut written = Vec::new();
-    for (target, file) in prepared {
-        if let Err(error) = file.persist_noclobber(&target) {
-            let mut errors = vec![error.to_string()];
-            for path in written {
-                if let Err(error) = fs::remove_file(path) { errors.push(format!("Rollback failed: {error}")); }
+    let mut written: Vec<(PathBuf, Option<Vec<u8>>, Vec<u8>)> = Vec::new();
+    for (target, file, previous, bytes) in prepared {
+        let result = (|| {
+            let current = if target.exists() { Some(fs::read(&target).map_err(|error| error.to_string())?) } else { None };
+            if current != previous { return Err(format!("{} changed during installation. Review the replacement again.", target.display())); }
+            if previous.is_some() { file.persist(&target).map_err(|error| error.to_string())?; }
+            else { file.persist_noclobber(&target).map_err(|error| error.to_string())?; }
+            Ok(())
+        })();
+        if let Err(error) = result {
+            let mut errors = vec![error];
+            for (path, previous, installed) in written.into_iter().rev() {
+                let rollback = (|| {
+                    if fs::read(&path).map_err(|error| error.to_string())? != installed {
+                        return Err(format!("{} changed after installation; preserved it", path.display()));
+                    }
+                    if let Some(previous) = previous {
+                        let mut backup = tempfile::NamedTempFile::new_in(path.parent().unwrap()).map_err(|error| error.to_string())?;
+                        backup.write_all(&previous).map_err(|error| error.to_string())?;
+                        backup.as_file().sync_all().map_err(|error| error.to_string())?;
+                        backup.persist(&path).map_err(|error| error.to_string())?;
+                    } else { fs::remove_file(&path).map_err(|error| error.to_string())?; }
+                    Ok(())
+                })();
+                if let Err(error) = rollback { errors.push(format!("Rollback failed: {error}")); }
             }
             return Err(errors.join("\n"));
         }
-        written.push(target);
+        written.push((target, previous, bytes));
     }
     Ok(())
 }
 
+#[cfg(test)]
+fn restore_at(draft: &Draft, install: &Path) -> Result<(), String> {
+    restore_files_at(&install_files(draft)?, install, &BTreeMap::new())
+}
+
+pub(super) fn install_texture_exports(skins: &[SkinExport], install: &Path, overwrite: Option<BTreeMap<String, String>>) -> Result<(), String> {
+    restore_files_at(&export_files(skins)?, install, &overwrite.unwrap_or_default())
+}
+
 #[tauri::command]
-pub fn install_draft(id: String, alpha_choices: Option<BTreeMap<String, bool>>, app: tauri::AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+pub fn install_draft(id: String, alpha_choices: Option<BTreeMap<String, bool>>, overwrite: Option<BTreeMap<String, String>>,
+    app: tauri::AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     let install = state.0.lock().map_err(|_| "Index lock failed")?.install_root.clone()
         .ok_or("Choose your Garry's Mod folder first")?;
     let root = storage(&app)?;
-    let mut draft = read_at(&root, &id)?;
-    if let Some(choices) = alpha_choices {
-        for texture in &mut draft.textures {
-            if let Some(choice) = texture.vtf_path.as_ref().and_then(|path| choices.get(path)) {
-                texture.strip_alpha = *choice;
-            }
-        }
-    }
-    let output = shared_texture::flatten_draft(&*state.0.lock().map_err(|_| "Index lock failed")?, &draft)?;
-    restore_at(&output, &install)?;
+    let (draft, output) = install_output(&root, &id, alpha_choices.as_ref(),
+        &*state.0.lock().map_err(|_| "Index lock failed")?)?;
+    restore_files_at(&install_files(&output)?, &install, &overwrite.unwrap_or_default())?;
     save_at(&root, draft).map_err(|error| format!("Skin installed, but its alpha settings could not be saved: {error}"))?;
     Ok(())
 }
@@ -856,15 +1236,18 @@ mod tests {
         let (gun_index, material) = gun.materials.iter().enumerate()
             .find(|(_, material)| material.vtf_path.as_ref().is_some_and(|path| path.ends_with("/gripsmag.vtf"))).unwrap();
         let stock_index = stock.materials.iter().position(|other| other.vtf_path == material.vtf_path).unwrap();
-        let colour = |rgba| {
+        let width = material.width.unwrap();
+        let height = material.height.unwrap();
+        let largest = if width.max(height) <= 2048 { (width * 2, height * 2) } else { (width, height) };
+        let colour = |rgba, (width, height)| {
             let image = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
-                material.width.unwrap(), material.height.unwrap(), image::Rgba(rgba)));
+                width, height, image::Rgba(rgba)));
             let mut bytes = Cursor::new(Vec::new());
             image.write_to(&mut bytes, ImageFormat::Png).unwrap();
             format!("data:image/png;base64,{}", STANDARD.encode(bytes.into_inner()))
         };
-        let green = colour([8, 230, 80, 255]);
-        let pink = colour([230, 20, 170, 255]);
+        let green = colour([8, 230, 80, 255], largest);
+        let pink = colour([230, 20, 170, 255], (width / 2, height / 2));
         let mut draft = sample();
         draft.model_path = gun_path.into();
         draft.slot_selections = BTreeMap::from([("SLOT_STOCK".into(), Some("stock_ak74".into()))]);
@@ -886,6 +1269,7 @@ mod tests {
         assert_eq!(output.textures.len(), 1);
         assert_eq!(output.textures[0].vmt_text, material.vmt_text);
         let pixels = image::load_from_memory(&png_bytes(&output.textures[0].png).unwrap()).unwrap().to_rgba8();
+        assert_eq!(pixels.dimensions(), largest);
         assert!(pixels.pixels().any(|pixel| pixel.0 == [8, 230, 80, 255]));
         assert!(pixels.pixels().any(|pixel| pixel.0 == [230, 20, 170, 255]));
         let exported = package_bytes(output.clone()).unwrap();
@@ -936,7 +1320,7 @@ mod tests {
         let vmt = material.vmt_path.as_ref().unwrap();
         let vtf = material.vtf_path.as_ref().unwrap();
         let edited = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
-            material.width.unwrap(), material.height.unwrap(), image::Rgba([210, 35, 40, 255])));
+            material.width.unwrap() / 2, material.height.unwrap() / 2, image::Rgba([210, 35, 40, 255])));
         let encoded = encode_vtf(&edited).unwrap();
         write_custom_skin(game.path(), vtf, vmt, material.vmt_text.as_ref().unwrap(), &encoded).unwrap();
         let inventory = custom_skin_inventory(game.path());
@@ -1268,6 +1652,237 @@ mod tests {
         uninstall_at(&draft, install.path()).unwrap();
         assert_eq!(summary(&draft, Some(install.path())).unwrap().installed_count, 0);
         assert!(read_at(root.path(), draft.id.as_deref().unwrap()).is_ok());
+    }
+
+    #[test]
+    fn install_impact_ignores_vmt_formatting_and_texture_reference_only_changes() {
+        let original = "VertexLitGeneric\n{\n$basetexture \"models/original\"\n$phong 1\n}";
+        let custom = "\"vertexlitgeneric\" { // comment\n \"$basetexture\" \"models/custom\" \n\"$phong\" \"1\" /* comment */ }";
+        assert_eq!(material_settings(original), material_settings(custom));
+        assert_ne!(material_settings(original), material_settings(&custom.replace("\"1\"", "\"0\"")));
+    }
+
+    #[test]
+    fn actual_component_install_merge_preserves_installed_regions_material_and_draft_sources() {
+        let Ok(content) = std::env::var("PERP_TEST_CONTENT") else { return; };
+        let install = tempfile::tempdir().unwrap();
+        fs::create_dir(install.path().join("addons")).unwrap();
+        fs::create_dir(install.path().join("data")).unwrap();
+        let mut index = ContentIndex::default();
+        collect_loose(Path::new(&content), &mut index.files);
+        let full_index = index.clone();
+        let gun_path = "models/perpheads/weapons/c_ak74u.mdl";
+        let stock_path = "models/perpheads/weapons/attachments/stock_ak74.mdl";
+        index.files.retain(|path, _| !path.ends_with(".mdl") || path == gun_path || path == stock_path);
+        let gun = build_model(&index, gun_path).unwrap();
+        let stock = build_model(&index, stock_path).unwrap();
+        let (gun_index, material) = gun.materials.iter().enumerate().find(|(_, material)|
+            material.vtf_path.as_ref().is_some_and(|path| path.ends_with("/gripsmag.vtf"))).unwrap();
+        let stock_index = stock.materials.iter().position(|other| other.vtf_path == material.vtf_path).unwrap();
+        let (width, height) = (material.width.unwrap(), material.height.unwrap());
+        let make_png = |colour, width, height| {
+            let mut png = Cursor::new(Vec::new());
+            image::RgbaImage::from_pixel(width, height, image::Rgba(colour)).write_to(&mut png, ImageFormat::Png).unwrap();
+            format!("data:image/png;base64,{}", STANDARD.encode(png.into_inner()))
+        };
+        let mut old = sample();
+        old.textures = vec![DraftTexture {key:material.vmt_path.clone().unwrap(), part_path:gun_path.into(),
+            vmt_path:material.vmt_path.clone(), vtf_path:material.vtf_path.clone(), vmt_text:material.vmt_text.clone(),
+            png:make_png([20, 90, 200, 40], width, height), strip_alpha:false}];
+        let initial_files = install_files(&old).unwrap();
+        let initial_review = install_review(&initial_files, &full_index, install.path()).unwrap();
+        assert!(initial_review.conflicts.is_empty(), "A first install must still review affected models");
+        assert!(initial_review.warnings.is_empty(), "{:?}", initial_review.warnings);
+        assert!(initial_review.affected_models.contains(&gun_path.to_owned()));
+        restore_at(&old, install.path()).unwrap();
+        assert!(install_affected_models(&initial_files, &index, install.path()).unwrap().0.is_empty(),
+            "Reinstalling exactly the installed skin must not flag any model");
+        let initial_vtf = initial_files.iter().find(|file| file.root == "vtf").unwrap();
+        let initial_target = file_target(install.path(), initial_vtf).unwrap();
+        fs::write(&initial_target, b"broken installed VTF").unwrap();
+        let unreadable = install_review(&initial_files, &index, install.path()).unwrap();
+        assert!(!unreadable.warnings.is_empty(), "Unknown effects must be visible, not reported as unchanged");
+        assert!(unreadable.affected_models.is_empty());
+        assert_eq!(unreadable.conflicts.len(), 1, "A corrupt installed VTF must still offer reviewed replacement");
+        fs::write(initial_target, STANDARD.decode(&initial_vtf.bytes).unwrap()).unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let mut draft = old.clone();
+        draft.component_textures = vec![
+            shared_texture::ComponentTexture {part_path:gun_path.into(), material_index:gun_index,
+                png:make_png([210, 30, 50, 80], width * 2, height * 2), source_id:None},
+            shared_texture::ComponentTexture {part_path:stock_path.into(), material_index:stock_index,
+                png:stock.materials[stock_index].image.clone().unwrap(), source_id:None},
+        ];
+        let draft = save_at(root.path(), draft).unwrap();
+        let request = ComponentMergeRequest {id:draft.id.clone().unwrap(), vtf_paths:vec![material.vtf_path.clone().unwrap()],
+            component_keys:Some(vec![format!("{gun_path}:{gun_index}")]), alpha_choices:BTreeMap::new()};
+        let snapshot = fs::read(draft_path(root.path(), &request.id).unwrap()).unwrap();
+        let before = installation_targets(&install_files(&old).unwrap(), install.path()).unwrap();
+        let merged = prepared_component_merge(root.path(), &request, &index, install.path()).unwrap();
+        let (affected, warnings) = install_affected_models(&merged, &index, install.path()).unwrap();
+        assert!(warnings.is_empty());
+        assert_eq!(affected, vec![gun_path.to_owned()],
+            "A stock sharing the VTF must not be flagged when its effective UV pixels are unchanged");
+        let stock_material = &stock.materials[stock_index];
+        if stock_material.vmt_path != material.vmt_path {
+            let mut stock_texture = old.textures[0].clone();
+            stock_texture.vmt_path = stock_material.vmt_path.clone();
+            stock_texture.vmt_text = stock_material.vmt_text.clone();
+            let stock_vmt = expected_files(&stock_texture).unwrap().into_iter().find(|file| file.root == "vmt").unwrap();
+            let stock_target = file_target(install.path(), &stock_vmt).unwrap();
+            fs::create_dir_all(stock_target.parent().unwrap()).unwrap();
+            fs::write(&stock_target, STANDARD.decode(&stock_vmt.bytes).unwrap()).unwrap();
+            assert_eq!(install_affected_models(&merged, &index, install.path()).unwrap().0, vec![gun_path.to_owned()],
+                "An already-installed stock material referencing the changed atlas still needs changed UV pixels to count");
+            let mut replacement = old.clone();
+            replacement.textures[0].png = make_png([90, 200, 20, 255], width, height);
+            assert!(install_affected_models(&install_files(&replacement).unwrap(), &index, install.path()).unwrap().0
+                .contains(&stock_path.to_owned()), "Changing the entire installed atlas also affects the stock's existing material");
+            fs::remove_file(stock_target).unwrap();
+        }
+        assert_eq!(merged.len(), 2, "Snapshot must track the existing VMT without rewriting its settings");
+        let merged_vtf = merged.iter().find(|file| file.root == "vtf").unwrap();
+        let image = textures::decode_texture(&STANDARD.decode(&merged_vtf.bytes).unwrap()).unwrap().to_rgba8();
+        assert_eq!(image.dimensions(), (width * 2, height * 2));
+        assert!(image.pixels().any(|pixel| pixel.0 == [210, 30, 50, 80]));
+        assert!(image.pixels().any(|pixel| pixel.0 == [20, 90, 200, 40]));
+        let conflicts = install_conflicts(&merged, install.path()).unwrap();
+        let approval = conflicts.into_iter().map(|conflict| (conflict.path, conflict.fingerprint)).collect();
+        let mut alpha = request.clone();
+        alpha.alpha_choices.insert(material.vtf_path.clone().unwrap(), true);
+        let opaque = prepared_component_merge(root.path(), &alpha, &index, install.path()).unwrap();
+        let opaque_vtf = opaque.iter().find(|file| file.root == "vtf").unwrap();
+        let image = textures::decode_texture(&STANDARD.decode(&opaque_vtf.bytes).unwrap()).unwrap().to_rgba8();
+        assert!(image.pixels().any(|pixel| pixel.0 == [210, 30, 50, 255]));
+        assert!(image.pixels().any(|pixel| pixel.0 == [20, 90, 200, 40]), "Alpha removal must not touch preserved regions");
+        assert!(restore_files_at(&opaque, install.path(), &approval).is_err(), "Changed alpha choice requires new approval");
+        for (path, bytes) in &before { assert_eq!(fs::read(path).unwrap(), *bytes); }
+        restore_files_at(&merged, install.path(), &approval).unwrap();
+        assert!(install_affected_models(&merged, &index, install.path()).unwrap().0.is_empty());
+        assert_eq!(fs::read(draft_path(root.path(), &request.id).unwrap()).unwrap(), snapshot);
+        let vmt = before.keys().find(|path| path.extension().unwrap() == "vmt").unwrap();
+        assert_eq!(fs::read(vmt).unwrap(), before[vmt]);
+        let alias = "models/perpheads/weapons/c_merge_overlap.mdl";
+        index.files.insert(alias.into(), index.files[gun_path].clone());
+        for extension in ["vvd", "dx90.vtx"] {
+            let source = gun_path.trim_end_matches("mdl").to_owned() + extension;
+            if let Some(value) = index.files.get(&source).cloned() {
+                index.files.insert(alias.trim_end_matches("mdl").to_owned() + extension, value);
+            }
+        }
+        assert!(component_merge_files(&draft, &request, &index, install.path()).is_ok(), "Already identical overlapping pixels are safe");
+        let mut changed = draft.clone();
+        changed.component_textures[0].png = make_png([90, 200, 20, 255], width, height);
+        assert!(component_merge_files(&changed, &request, &index, install.path()).err().unwrap().contains("Merge blocked"));
+        let flattened = shared_texture::flatten_draft(&index, &draft).unwrap();
+        assert!(component_merge_files(&flattened, &request, &index, install.path()).is_err());
+        let name = save_and_install_merge(root.path(), &request.id, merged.clone(), install.path(), &BTreeMap::new()).unwrap();
+        assert!(name.ends_with(" - merged installation"));
+        let saved = fs::read_dir(root.path()).unwrap().map(|entry| entry.unwrap().path())
+            .filter(|path| path.extension().is_some_and(|extension| extension == "json"))
+            .find_map(|path| {
+                let saved = read_at(root.path(), path.file_stem().unwrap().to_str().unwrap()).unwrap();
+                if saved.id != draft.id { Some(saved) } else { None }
+            }).unwrap();
+        assert!(saved.textures.is_empty() && saved.component_textures.is_empty());
+        assert_eq!(summary(&saved, Some(install.path())).unwrap().installed_count, 1);
+        assert_eq!(fs::read(draft_path(root.path(), &request.id).unwrap()).unwrap(), snapshot);
+        assert!(package_bytes(saved.clone()).is_ok(), "Merged installation must export as a complete backup");
+        uninstall_at(&saved, install.path()).unwrap();
+        assert_eq!(summary(&saved, Some(install.path())).unwrap().installed_count, 0);
+        restore_at(&saved, install.path()).unwrap();
+        assert_eq!(summary(&saved, Some(install.path())).unwrap().installed_count, 1);
+    }
+
+    #[test]
+    fn overwrite_requires_review_of_exact_installed_and_replacement_files() {
+        let install = tempfile::tempdir().unwrap();
+        fs::create_dir(install.path().join("addons")).unwrap();
+        fs::create_dir(install.path().join("data")).unwrap();
+        let mut original = sample();
+        original.id = Some("original".into());
+        restore_at(&original, install.path()).unwrap();
+        let before = installation_targets(&install_files(&original).unwrap(), install.path()).unwrap();
+        let mut replacement = original.clone();
+        let mut png = Cursor::new(Vec::new());
+        DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(8, 8, image::Rgba([20, 90, 200, 80])))
+            .write_to(&mut png, ImageFormat::Png).unwrap();
+        replacement.textures[0].png = format!("data:image/png;base64,{}", STANDARD.encode(png.into_inner()));
+        replacement.textures[0].vmt_text = Some("VertexLitGeneric\n{\n$basetexture \"original\"\n$phong 1\n}".into());
+        let files = install_files(&replacement).unwrap();
+        let conflicts = install_conflicts(&files, install.path()).unwrap();
+        assert_eq!(conflicts.len(), 2);
+        let preview = conflicts.iter().find(|conflict| conflict.installed_png.is_some()).unwrap();
+        let left = image::load_from_memory(&png_bytes(preview.installed_png.as_ref().unwrap()).unwrap()).unwrap().to_rgba8();
+        let right = image::load_from_memory(&png_bytes(preview.replacement_png.as_ref().unwrap()).unwrap()).unwrap().to_rgba8();
+        assert_eq!(left.get_pixel(0, 0).0, [220, 30, 50, 255]);
+        assert_eq!(right.get_pixel(0, 0).0, [20, 90, 200, 255]);
+        let approval: BTreeMap<_, _> = conflicts.iter().map(|conflict| (conflict.path.clone(), conflict.fingerprint.clone())).collect();
+        assert!(restore_files_at(&files, install.path(), &BTreeMap::new()).is_err());
+        for (path, bytes) in &before { assert_eq!(fs::read(path).unwrap(), *bytes); }
+        let vtf = before.keys().find(|path| path.extension().unwrap() == "vtf").unwrap();
+        fs::write(vtf, b"externally changed").unwrap();
+        assert!(restore_files_at(&files, install.path(), &approval).is_err());
+        assert_eq!(fs::read(vtf).unwrap(), b"externally changed");
+        fs::write(vtf, &before[vtf]).unwrap();
+        let mut changed_files = files.clone();
+        changed_files[0].bytes = STANDARD.encode(b"changed replacement");
+        assert!(restore_files_at(&changed_files, install.path(), &approval).is_err());
+        for (path, bytes) in &before { assert_eq!(fs::read(path).unwrap(), *bytes); }
+        let unrelated = install.path().join("addons").join("unrelated.txt");
+        fs::write(&unrelated, b"untouched").unwrap();
+        restore_files_at(&files, install.path(), &approval).unwrap();
+        assert_eq!(summary(&original, Some(install.path())).unwrap().installed_count, 0);
+        assert_eq!(summary(&replacement, Some(install.path())).unwrap().installed_count, 1);
+        assert!(install_conflicts(&files, install.path()).unwrap().is_empty());
+        restore_files_at(&files, install.path(), &BTreeMap::new()).unwrap();
+        assert_eq!(fs::read(unrelated).unwrap(), b"untouched");
+        let source = &replacement.textures[0];
+        install_texture_exports(&[SkinExport {material_path:source.vtf_path.clone().unwrap(),
+            vmt_path:source.vmt_path.clone().unwrap(), vmt_text:source.vmt_text.clone().unwrap(),
+            png_base64:source.png.clone(), strip_alpha:false}], install.path(), None).unwrap();
+    }
+
+    #[test]
+    fn undecodable_installed_vtf_reports_preview_warning_without_hiding_conflict() {
+        let install = tempfile::tempdir().unwrap();
+        fs::create_dir(install.path().join("addons")).unwrap();
+        fs::create_dir(install.path().join("data")).unwrap();
+        let files = install_files(&sample()).unwrap();
+        let vtf = files.iter().find(|file| file.root == "vtf").unwrap();
+        let target = file_target(install.path(), vtf).unwrap();
+        fs::create_dir_all(target.parent().unwrap()).unwrap();
+        fs::write(&target, b"damaged VTF").unwrap();
+        let conflicts = install_conflicts(&files, install.path()).unwrap();
+        assert_eq!(conflicts.len(), 1);
+        assert!(conflicts[0].installed_png.is_none());
+        assert!(conflicts[0].replacement_png.is_some());
+        assert!(conflicts[0].warning.as_deref().unwrap().contains("Installed VTF preview unavailable"));
+        assert_eq!(fs::read(&target).unwrap(), b"damaged VTF");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn failed_overwrite_rolls_back_already_replaced_files() {
+        let install = tempfile::tempdir().unwrap();
+        fs::create_dir(install.path().join("addons")).unwrap();
+        fs::create_dir(install.path().join("data")).unwrap();
+        let files = install_files(&sample()).unwrap();
+        restore_files_at(&files, install.path(), &BTreeMap::new()).unwrap();
+        let before = installation_targets(&files, install.path()).unwrap();
+        let mut changed = files.clone();
+        for file in &mut changed { file.bytes = STANDARD.encode(b"new bytes"); }
+        let conflicts = install_conflicts(&changed, install.path()).unwrap();
+        let approval = conflicts.into_iter().map(|conflict| (conflict.path, conflict.fingerprint)).collect();
+        let vmt = before.keys().find(|path| path.extension().unwrap() == "vmt").unwrap();
+        let mut permissions = fs::metadata(vmt).unwrap().permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(vmt, permissions.clone()).unwrap();
+        let result = restore_files_at(&changed, install.path(), &approval);
+        permissions.set_readonly(false);
+        fs::set_permissions(vmt, permissions).unwrap();
+        assert!(result.is_err());
+        for (path, bytes) in before { assert_eq!(fs::read(path).unwrap(), bytes); }
     }
 
     #[test]
