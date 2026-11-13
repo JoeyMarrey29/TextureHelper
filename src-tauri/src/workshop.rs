@@ -152,18 +152,7 @@ fn open_browser(url: &str) -> Result<(), String> {
         || ![Some("texture-helper-workshop.work-855.workers.dev"), Some("steamcommunity.com")].contains(&parsed.host_str()) {
         return Err("Unexpected browser URL".into());
     }
-    #[link(name = "shell32")]
-    unsafe extern "system" {
-        fn ShellExecuteW(window: *mut std::ffi::c_void, operation: *const u16, file: *const u16,
-            parameters: *const u16, directory: *const u16, show: i32) -> isize;
-    }
-    let operation: Vec<u16> = "open\0".encode_utf16().collect();
-    let target: Vec<u16> = url.encode_utf16().chain(Some(0)).collect();
-    // Both strings are null-terminated and remain alive for the shell call.
-    let result = unsafe { ShellExecuteW(std::ptr::null_mut(), operation.as_ptr(), target.as_ptr(),
-        std::ptr::null(), std::ptr::null(), 1) };
-    if result <= 32 { return Err(format!("Windows could not open your default browser (code {result})")); }
-    Ok(())
+    super::open_web_url(url)
 }
 
 #[tauri::command]

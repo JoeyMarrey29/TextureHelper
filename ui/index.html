@@ -32,7 +32,7 @@
         <div class="model-head"><div><span class="eyebrow">MODEL INSPECTOR</span><h2 id="model-name">Select a model</h2><p id="model-path">Search the library to begin.</p></div><span id="triangle-count" class="tag">3D preview</span></div>
         <div id="draft-tools" class="draft-tools hidden">
           <label>Draft name<input id="draft-name" type="text" aria-label="Draft name"></label>
-          <div><small id="draft-status" role="status"></small><button id="save-draft" type="button" class="button secondary">Save now</button></div>
+          <div><small id="draft-status" role="status"></small><button id="open-mcp" type="button" class="button secondary">AI / MCP</button><button id="save-draft" type="button" class="button secondary">Save now</button></div>
         </div>
         <div id="draft-actions" class="draft-actions hidden" aria-label="Draft actions">
           <button id="publish-draft" class="button secondary" type="button">Publish</button>
@@ -93,6 +93,61 @@
       </aside>
     </main>
     <div id="toast" class="toast hidden" role="status"></div>
+    <dialog id="mcp-dialog" aria-labelledby="mcp-title">
+      <header class="ai-dialog-heading"><span class="eyebrow">DRAFT STUDIO</span><h2 id="mcp-title">Generate a skin for this draft</h2></header>
+      <label>Connection type<select id="ai-provider"><option value="copilot">GitHub Copilot subscription</option><option value="codex">ChatGPT subscription (Codex)</option><option value="openai">OpenAI API (separate API billing)</option><option value="mcp">Remote MCP image tool</option></select></label>
+      <fieldset id="mcp-settings">
+        <legend>Connection</legend>
+        <div id="ai-account" class="ai-account" aria-live="polite">
+          <span id="ai-account-avatar" class="ai-account-avatar" aria-hidden="true">GH</span>
+          <div class="ai-account-info"><strong id="ai-account-name">GitHub Copilot</strong><span id="ai-account-detail">Connect your GitHub account</span></div>
+          <span id="ai-account-badge" class="ai-account-badge">Not connected</span>
+        </div>
+        <div id="copilot-settings">
+          <div id="copilot-install-settings" class="hidden"><button id="copilot-install" type="button" class="button secondary">Install Copilot CLI</button></div>
+          <div class="button-row"><button id="copilot-signin" type="button" class="button secondary">Sign in with GitHub</button><button id="copilot-connect" type="button" class="button secondary">Use signed-in account</button></div>
+        </div>
+        <div id="codex-settings" class="hidden">
+          <div id="codex-install-settings" class="hidden"><button id="codex-install" type="button" class="button secondary">Install Codex CLI</button></div>
+          <div class="button-row"><button id="codex-signin" type="button" class="button secondary">Sign in with ChatGPT</button><button id="codex-connect" type="button" class="button secondary">Use signed-in account</button></div>
+        </div>
+        <div id="openai-settings" class="hidden">
+          <label>OpenAI API key<input id="openai-key" type="password" autocomplete="off" placeholder="Enter your API key here, never in chat"></label>
+          <button id="openai-connect" type="button" class="button secondary">Use API key</button>
+        </div>
+        <div id="mcp-connection-settings" class="hidden">
+        <label>MCP Streamable HTTP URL<input id="mcp-url" type="url" placeholder="https://your-service.example/mcp" autocomplete="off"></label>
+        <label>Bearer token (optional alternative to sign-in)<input id="mcp-token" type="password" autocomplete="off"></label>
+        <details><summary>OAuth sign-in settings</summary>
+          <label>Public client ID (blank for dynamic registration)<input id="mcp-client-id" autocomplete="off"></label>
+          <label>Scopes (space-separated, if required by the service)<input id="mcp-scopes" autocomplete="off"></label>
+        </details>
+        <div class="button-row"><button id="mcp-connect" type="button" class="button secondary">Connect with token / no auth</button><button id="mcp-signin" type="button" class="button secondary">Sign in with service</button></div>
+        </div>
+        <button id="mcp-disconnect" type="button" class="button secondary hidden" disabled>Disconnect</button>
+      </fieldset>
+      <fieldset id="mcp-request" disabled>
+        <legend>Skin generation</legend>
+        <div id="openai-generation-settings" class="hidden">
+          <label>OpenAI image model<input id="openai-model" value="gpt-image-2.5-sunburst" maxlength="100" spellcheck="false"></label>
+          <label>Generation quality<select id="openai-quality"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></label>
+        </div>
+        <div id="mcp-tool-settings" class="hidden">
+        <label>Discovered tool<select id="mcp-tool"></select></label>
+        <p id="mcp-tool-description" class="note"></p>
+        <details><summary>Tool input schema</summary><pre id="mcp-schema"></pre></details>
+        <label>Tool arguments (JSON)<textarea id="mcp-arguments" rows="6" spellcheck="false">{"prompt":"$PROMPT","image":"$IMAGE"}</textarea></label>
+        </div>
+        <label>Describe the skin for the whole draft<textarea id="mcp-prompt" rows="3" maxlength="16000" placeholder="Example: a worn dark-blue finish with subtle gold trim; keep markings and UV layout"></textarea></label>
+        <label class="mcp-consent"><input id="mcp-send-original" type="checkbox"><span>Send original VTF<br><span class="note">Sends the current texture as PNG instead of UV overlay only. This may be more likely to trigger the provider's content moderation.</span></span></label>
+        <p id="mcp-content-warning" class="note">Generating weapon skins may trigger the AI provider's content filters. These restrictions come from the provider, not Texture Helper.</p>
+        <label class="mcp-consent"><input id="mcp-consent" type="checkbox">Allow sending the selected reference and prompts. Generation may use credits or incur charges.</label>
+        <button id="mcp-generate" type="button" class="button primary">Generate draft preview</button>
+      </fieldset>
+      <p id="mcp-status" role="status" aria-live="polite"></p>
+      <div id="mcp-previews"></div>
+      <div class="button-row ai-dialog-footer"><button id="mcp-close" type="button" class="button secondary">Close / cancel</button><button id="mcp-apply" type="button" class="button primary" disabled>Apply all to local draft</button></div>
+    </dialog>
     <dialog id="resize-image-dialog" aria-labelledby="resize-image-title">
       <form method="dialog">
         <h2 id="resize-image-title">Resize imported image?</h2>

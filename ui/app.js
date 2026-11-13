@@ -1,6 +1,7 @@
 import * as THREE from './vendor/three.module.js';
 import {attachmentData} from './attachment-data.js';
 import {startUpdates} from './updates.js';
+import {startMcp} from './mcp.js';
 
 const invoke = (command, args = {}) => window.__TAURI__.core.invoke(command, args);
 const $ = id => document.getElementById(id);
@@ -1356,6 +1357,152 @@ function sameDraftPreview(previous, current) {
       texture => `${texture.partPath}:${texture.materialIndex}`, ['png']);
 }
 
+function mcpDraftFingerprint() {
+  const record = ([key, edit]) => [key, edit.png, edit.vmtText, edit.stripAlpha, edit.variantId];
+  return JSON.stringify({
+    model: model?.path, selectionSerial, loadoutSerial,
+    slots:[...slotSelections], edits:[...edits].map(record), components:[...componentEdits].map(record),
+    originalIds:(draftSession?.aiOriginals || []).map(original => original.id),
+  });
+}
+
+async function snapshotMcpDraft({sendOriginal = false} = {}) {
+  if (!model || draftSession?.deletionPromise) throw new Error('Open an editable model or draft first.');
+  const selectedModel = model, serial = selectionSerial, loadout = loadoutSerial;
+  await saveDraft();
+  if (model !== selectedModel || selectionSerial !== serial || loadoutSerial !== loadout) {
+    throw new Error('The model or attachments changed while preparing the request. Try again.');
+  }
+  const fingerprint = mcpDraftFingerprint(), session = draftSession;
+  const targets = [], coveredKeys = new Set(), coveredComponents = new Set();
+  let skipped = 0;
+  for (const group of textureGroups()) {
+    const layers = group.filter(layer => layer.part.meshes.some(mesh => mesh.materialIndex === layer.index));
+    const editable = layers.filter(layer => supportedMaterial(layer.material, layer.part.path));
+    skipped += layers.length - editable.length;
+    if (!editable.length) continue;
+    for (const layer of editable) coveredKeys.add(skinKey(layer.material));
+    if (editable.some(layer => componentEdits.has(uvLayerKey(layer)))) {
+      for (const layer of editable) {
+        const source = componentEdit(layer.part, layer.index) || textureEdit(layer.material);
+        coveredComponents.add(uvLayerKey(layer));
+        targets.push({label:layerLabel(layer), png:source?.png || layer.material.image, component:true, layers:[layer], keys:[]});
+      }
+    } else {
+      const source = textureEdit(editable[0].material);
+      targets.push({label:editable.map(layerLabel).join(' / '), png:source?.png || editable[0].material.image,
+        component:false, layers:editable, keys:editable.map(layer => skinKey(layer.material))});
+    }
+  }
+  // Saved edits can belong to attachments that are not currently mounted.
+  for (const [key, edit] of edits) {
+    if (coveredKeys.has(key)) continue;
+    if (!supportedMaterial(edit, edit.partPath)) { skipped++; continue; }
+    const existing = targets.find(target => !target.component && target.png === edit.png
+      && (target.layers[0]?.material.vtfPath || edits.get(target.keys[0])?.vtfPath)?.toLowerCase() === edit.vtfPath?.toLowerCase());
+    if (existing) existing.keys.push(key);
+    else targets.push({label:`Saved texture: ${edit.vmtPath}`, png:edit.png, component:false, layers:[], keys:[key]});
+  }
+  for (const [key, edit] of componentEdits) {
+    if (coveredComponents.has(key)) continue;
+    if (!supportedMaterial(edit, edit.partPath)) { skipped++; continue; }
+    targets.push({label:`Saved component: ${edit.partPath} / ${edit.materialIndex}`, png:edit.png,
+      component:true, layers:[], keys:[], componentKey:key});
+  }
+  if (!targets.length) throw new Error('This draft has no editable game textures.');
+  if (targets.length > 128) throw new Error('MCP previews support at most 128 texture sources per request.');
+  let pixels = 0;
+  for (const target of targets) {
+    if (!target.png) throw new Error(`${target.label} has no decoded image; no textures were sent.`);
+    const image = new Image(); image.src = target.png; await image.decode();
+    target.width = image.width; target.height = image.height;
+    if (!replacementDimensionsMatch(image.width, image.height, {width:image.width, height:image.height})) {
+      throw new Error(`${target.label} needs power-of-two dimensions up to 4096 pixels per side.`);
+    }
+    pixels += image.width * image.height;
+    if (pixels > 64 * 1024 * 1024) throw new Error('This draft exceeds the 64-million-pixel MCP preview working limit.');
+    if (!sendOriginal) {
+      let layers = target.layers;
+      if (!layers.length) {
+        const sources = target.componentKey ? [componentEdits.get(target.componentKey)] : target.keys.map(key => edits.get(key));
+        layers = (await Promise.all(sources.map(async edit => {
+          if (!edit?.partPath) throw new Error(`${target.label}: cannot locate UV geometry. No textures were sent.`);
+          const part = await loadPart(edit.partPath);
+          return part.materials.flatMap((material, index) => {
+            const matches = target.component ? index === edit.materialIndex
+              : (!!material.vtfPath && material.vtfPath.toLowerCase() === edit.vtfPath?.toLowerCase())
+                || (!!material.vmtPath && material.vmtPath.toLowerCase() === edit.vmtPath?.toLowerCase());
+            return matches ? [{part, material, index}] : [];
+          });
+        }))).flat();
+      }
+      if (!layers.some(layer => layer.part.meshes.some(mesh => mesh.materialIndex === layer.index && mesh.uvs.length >= 6))) {
+        throw new Error(`${target.label}: UV geometry is unavailable. No textures were sent.`);
+      }
+      const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height);
+      drawUv(context, canvas.width, canvas.height, layers, false);
+      target.referencePng = canvas.toDataURL('image/png');
+    }
+  }
+  if (mcpDraftFingerprint() !== fingerprint || draftSession !== session) throw new Error('The draft changed while preparing textures. Try again.');
+  return {targets, fingerprint, session, originalCount:session?.aiOriginals?.length || 0,
+    note:skipped ? `${skipped} non-editable material slots are excluded.` : 'All editable draft textures are included.'};
+}
+
+async function applyMcpDraft(captured, results) {
+  if (draftSession !== captured.session || mcpDraftFingerprint() !== captured.fingerprint || draftSession?.deletionPromise) {
+    throw new Error('The draft or attachments changed after generation. No edits applied; generate a new preview.');
+  }
+  if (results.length !== captured.targets.length || results.some((result, index) => result.target !== captured.targets[index])) {
+    throw new Error('The MCP preview is incomplete. No edits applied.');
+  }
+  const nextEdits = new Map(edits), nextComponents = new Map(componentEdits);
+  const originals = results.filter(result => result.originalPng).map(({target, originalPng, originalProvider}) => ({
+    id:`ai-${Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('')}`,
+    label:`${originalProvider} original: ${target.label.slice(0, 200)}`, png:originalPng,
+  }));
+  if ((draftSession?.aiOriginals?.length || 0) + originals.length > 24) {
+    throw new Error('The draft cannot retain all generated originals (limit 24). No edits applied.');
+  }
+  for (const {target, png, image} of results) {
+    for (const layer of target.layers) {
+      const key = skinKey(layer.material), base = textureEdit(layer.material);
+      if (target.component) {
+        if (!nextEdits.has(key)) nextEdits.set(key, {...base, key, png:base?.png || layer.material.image,
+          partPath:layer.part.path, vmtPath:layer.material.vmtPath, vtfPath:layer.material.vtfPath,
+          vmtText:base?.vmtText ?? layer.material.vmtText});
+        nextComponents.set(uvLayerKey(layer), {...base, ...componentEdits.get(uvLayerKey(layer)), png, image,
+          partPath:layer.part.path, materialIndex:layer.index, vmtPath:layer.material.vmtPath,
+          vtfPath:layer.material.vtfPath, variantId:undefined});
+      } else {
+        nextEdits.set(key, {...base, key, png, image, partPath:layer.part.path, vmtPath:layer.material.vmtPath,
+          vtfPath:layer.material.vtfPath, vmtText:base?.vmtText ?? layer.material.vmtText, variantId:undefined});
+      }
+    }
+    for (const key of target.keys) {
+      const existing = nextEdits.get(key);
+      if (existing) nextEdits.set(key, {...existing, png, image, variantId:undefined});
+    }
+    if (target.componentKey) nextComponents.set(target.componentKey, {
+      ...nextComponents.get(target.componentKey), png, image, variantId:undefined,
+    });
+  }
+  edits.clear(); for (const [key, edit] of nextEdits) edits.set(key, edit);
+  componentEdits.clear(); for (const [key, edit] of nextComponents) componentEdits.set(key, edit);
+  if (!draftSession) draftSession = {id:null, name:`${weaponData()?.name || attachmentName(model)} draft`, status:''};
+  if (originals.length) draftSession.aiOriginals = [...(draftSession.aiOriginals || []), ...originals];
+  importedPng = currentEdit()?.png || null; importedImage = currentEdit()?.image || null;
+  overviewKey = '';
+  renderAssembly(); renderMaterials();
+  try { await saveDraft(); }
+  catch (error) { throw new Error(`Edits are applied locally but saving failed: ${error}. Keep the app open and use Save now to retry.`); }
+  return draftSession.componentError || null;
+}
+
+startMcp({invoke, snapshot:snapshotMcpDraft, apply:applyMcpDraft, toast});
+
 function saveDraft() {
   if (draftSession?.deletionPromise) return draftSession.deletionPromise;
   if (!model || !edits.size || !draftSession) return draftSaveQueue;
@@ -1606,13 +1753,13 @@ function renderUvLayers() {
     row.append(label, select, edit); container.append(row);
   });
 }
-function drawUv(context, width, height) {
+function drawUv(context, width, height, layers = editingTextureLayers(), respectHidden = true) {
   context.save();
   context.lineWidth = Math.max(1, width / 512); context.lineJoin = 'round';
   context.beginPath(); context.rect(0, 0, width, height); context.clip();
-  editingTextureLayers().forEach(layer => {
-    if (hiddenUvLayers.has(uvLayerKey(layer))) return;
-    const color = uvColors[uvColorIndex(layer)];
+  layers.forEach((layer, index) => {
+    if (respectHidden && hiddenUvLayers.has(uvLayerKey(layer))) return;
+    const color = uvColors[respectHidden ? uvColorIndex(layer) : index % uvColors.length];
     context.strokeStyle = color;
     context.fillStyle = `${color}20`;
     for (const mesh of layer.part.meshes.filter(item => item.materialIndex === layer.index)) {

@@ -8,6 +8,12 @@ mod drafts;
 mod textures;
 mod shared_texture;
 mod workshop;
+mod mcp;
+mod mcp_auth;
+mod openai;
+mod copilot;
+mod codex;
+mod ai_error;
 
 use base64::{Engine, engine::general_purpose::STANDARD};
 use image::{DynamicImage, GenericImageView, ImageFormat};
@@ -1490,6 +1496,27 @@ fn save_png(name: String, png_base64: String) -> Result<Option<String>, String> 
     Ok(Some(path.display().to_string()))
 }
 
+fn open_web_url(url: &str) -> Result<(), String> {
+    let parsed = reqwest::Url::parse(url).map_err(|_| "Invalid browser URL")?;
+    let local = matches!(parsed.host_str(), Some("127.0.0.1" | "localhost" | "[::1]" | "::1"));
+    if !(parsed.scheme() == "https" || parsed.scheme() == "http" && local)
+        || !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("Browser URLs must use HTTPS or localhost HTTP, without embedded credentials".into());
+    }
+    #[link(name = "shell32")]
+    unsafe extern "system" {
+        fn ShellExecuteW(window: *mut std::ffi::c_void, operation: *const u16, file: *const u16,
+            parameters: *const u16, directory: *const u16, show: i32) -> isize;
+    }
+    let operation: Vec<u16> = "open\0".encode_utf16().collect();
+    let target: Vec<u16> = url.encode_utf16().chain(Some(0)).collect();
+    // Both strings are null-terminated and remain alive for the shell call.
+    let result = unsafe { ShellExecuteW(std::ptr::null_mut(), operation.as_ptr(), target.as_ptr(),
+        std::ptr::null(), std::ptr::null(), 1) };
+    if result <= 32 { return Err(format!("Windows could not open your default browser (code {result})")); }
+    Ok(())
+}
+
 fn main() {
     let minimized = std::env::args_os().any(|arg| arg == "--minimized");
     let mut context = tauri::generate_context!();
@@ -1503,6 +1530,11 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updates::UpdateState::default())
         .manage(workshop::WorkshopState::default())
+        .manage(mcp::McpState::default())
+        .manage(mcp_auth::McpAuthState::default())
+        .manage(openai::OpenAiState::default())
+        .manage(copilot::CopilotState::default())
+        .manage(codex::CodexState::default())
         .manage(AppState::default())
         .setup(move |app| {
             if minimized {
@@ -1513,6 +1545,13 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            mcp::mcp_connect, mcp::mcp_disconnect, mcp::mcp_edit_texture,
+            mcp_auth::mcp_signin, mcp_auth::mcp_cancel_signin,
+            openai::openai_connect, openai::openai_disconnect, openai::openai_edit_texture,
+            copilot::copilot_connect, copilot::copilot_disconnect, copilot::copilot_edit_texture,
+            copilot::copilot_installation, copilot::copilot_install,
+            copilot::codex_installation, copilot::codex_install,
+            codex::codex_connect, codex::codex_disconnect, codex::codex_edit_texture,
             workshop::workshop_list, workshop::workshop_signin,
             workshop::workshop_account, workshop::workshop_signout, workshop::workshop_stage,
             workshop::workshop_pending, workshop::workshop_discard, workshop::workshop_publish, workshop::workshop_preview,

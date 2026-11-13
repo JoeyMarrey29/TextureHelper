@@ -1,6 +1,6 @@
 [package]
 name = "texture-helper"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2024"
 
 [build-dependencies]
@@ -24,6 +24,9 @@ tauri-plugin-updater = "2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 sha2 = "0.10"
 getrandom = "0.3"
+github-copilot-sdk = { version = "1.0.33", default-features = false, features = ["runtime"] }
+tokio = { version = "1", features = ["sync", "time", "macros"] }
+async-trait = "0.1"
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }

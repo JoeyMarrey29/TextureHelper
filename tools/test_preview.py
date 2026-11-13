@@ -66,7 +66,46 @@ window.previewTest = {
     };
     window.pendingTextureRedraws=()=>callbacks.length;
   },
-  sameDraftPreview,
+  sameDraftPreview, snapshotMcpDraft, applyMcpDraft, mcpDraftFingerprint,
+  async setMcpAlphaSource() {
+    const target=(await snapshotMcpDraft()).targets[0],layer=target.layers[0];
+    const canvas=document.createElement('canvas');canvas.width=target.width;canvas.height=target.height;
+    const context=canvas.getContext('2d');context.fillStyle='rgba(200,40,80,0.5)';
+    context.fillRect(0,0,canvas.width,canvas.height);context.clearRect(0,0,1,1);
+    const key=target.component?uvLayerKey(layer):target.keys[0];
+    const map=target.component?componentEdits:edits;
+    map.set(key,{...map.get(key),png:canvas.toDataURL()});
+  },
+  async alphaValues(png) {
+    const image=new Image();image.src=png;await image.decode();
+    const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;
+    const context=canvas.getContext('2d');context.drawImage(image,0,0);
+    return [...context.getImageData(0,0,image.width,image.height).data].filter((_,index)=>index%4===3);
+  },
+  hideAllUvLayers(hidden) {
+    for (const layers of textureGroups()) for (const layer of layers) {
+      if(hidden) hiddenUvLayers.add(uvLayerKey(layer)); else hiddenUvLayers.delete(uvLayerKey(layer));
+    }
+  },
+  async addDetachedMcpEdit() {
+    const path='models/perpheads/weapons/attachments/stock_sako92.mdl';
+    const part=structuredClone(await loadPart(path));
+    const key='materials/models/weapons/v_models/detached/test.vmt';
+    const material={...part.materials[0],vmtPath:key,vtfPath:key.replace('.vmt','.vtf')};
+    part.materials[0]=material;partCache.set(`${path}:idle`,Promise.resolve(part));
+    edits.set(key,{key,partPath:part.path,vmtPath:key,vtfPath:material.vtfPath,
+      vmtText:'VertexLitGeneric {}',png:this.variantPng('#456789')});
+    return key;
+  },
+  splitMcpComponents() {
+    const layers=textureGroups().find(layers=>layers.length>1);
+    for (const [index, layer] of layers.entries()) {
+      const base=textureEdit(layer.material);
+      componentEdits.set(uvLayerKey(layer),{...base,partPath:layer.part.path,materialIndex:layer.index,
+        vtfPath:layer.material.vtfPath,vmtPath:layer.material.vmtPath,png:this.compositionPng(index?'#996633':'#336699','#666666')});
+    }
+    return layers.map(layer=>uvLayerKey(layer));
+  },
   draftPreviewVersion:()=>draftThumbnailVersions.get(draftSession?.id),
   setupSharedComposition() {
     const gun=assembly.get(model.path), stock=assembly.get('models/perpheads/weapons/attachments/stock_ak101.mdl');
@@ -395,6 +434,49 @@ with sync_playwright() as playwright:
     try:
         page = browser.new_page(viewport={"width": 1500, "height": 950})
         errors = []
+        def check_content_block(provider):
+            fingerprint = page.evaluate("previewTest.mcpDraftFingerprint()")
+            page.evaluate("draftMock.aiContentBlocked=true")
+            before = page.evaluate("draftMock.calls.filter(command=>command.endsWith('_edit_texture')).length")
+            page.locator("#mcp-generate").click()
+            page.wait_for_function("document.getElementById('mcp-status').textContent.includes('Content blocked by')")
+            message = page.locator("#mcp-status").inner_text()
+            assert f"Content blocked by {provider}" in message
+            assert "violence" in message and "output" in message
+            assert page.locator("#mcp-apply").is_disabled()
+            assert page.locator("#mcp-previews section").count() == 0
+            assert page.evaluate("previewTest.mcpDraftFingerprint()") == fingerprint
+            assert page.evaluate("draftMock.calls.filter(command=>command.endsWith('_edit_texture')).length") == before + 1
+            page.evaluate("draftMock.aiContentBlocked=false")
+
+        def check_reference_modes(provider):
+            field = provider + "Edits"
+            assert not page.locator("#mcp-send-original").is_checked()
+            captured = page.evaluate("""async () => (await previewTest.snapshotMcpDraft()).targets.map(
+                target=>({png:target.png,reference:target.referencePng}))""")
+            hidden_references = page.evaluate("""async () => {
+                previewTest.hideAllUvLayers(true);
+                try { return (await previewTest.snapshotMcpDraft()).targets.map(target=>target.referencePng); }
+                finally { previewTest.hideAllUvLayers(false); }
+            }""")
+            assert hidden_references == [target["reference"] for target in captured]
+            for send_original in [False, True]:
+                page.locator("#mcp-send-original").set_checked(send_original)
+                page.evaluate("field=>draftMock[field]=[]", field)
+                page.locator("#mcp-generate").click()
+                page.wait_for_function("!document.getElementById('mcp-apply').disabled")
+                requests = page.evaluate("field=>draftMock[field]", field)
+                assert len(requests) == len(captured)
+                for request, target in zip(requests, captured):
+                    assert request["png"] == target["png" if send_original else "reference"]
+                    if not send_original:
+                        assert request["png"] != target["png"]
+                        assert target["png"] not in json.dumps(request)
+                        assert "UV wireframe guide only" in request["prompt"]
+            page.locator("#mcp-send-original").uncheck()
+            assert page.locator("#mcp-apply").is_disabled()
+            page.evaluate("field=>draftMock[field]=[]", field)
+
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.route(ORIGIN + "**", serve)
         page.add_init_script("""
@@ -407,6 +489,76 @@ with sync_playwright() as playwright:
           };
           window.__TAURI__ = {core: {invoke: async (command, args) => {
             const mock = window.draftMock; mock.calls.push(command);
+            if (mock.aiContentBlocked && ['codex_edit_texture','copilot_edit_texture','openai_edit_texture','mcp_edit_texture'].includes(command)) {
+              const provider={codex:'ChatGPT / Codex',copilot:'GitHub Copilot',openai:'OpenAI API',mcp:'MCP provider'}[command.split('_')[0]];
+              throw Error(`Content blocked by ${provider}. Provider reason: Rejected by the safety system; moderation_blocked; output; violence. No automatic retry was made.`);
+            }
+            if (command === 'mcp_disconnect' || command === 'mcp_cancel_signin' || command === 'openai_disconnect' || command === 'copilot_disconnect' || command === 'codex_disconnect') return;
+            if (command === 'copilot_installation' || command === 'codex_installation') {
+              const provider=command.split('_')[0];
+              return {installed:!mock[provider+'Missing'],wingetAvailable:!mock.wingetMissing};
+            }
+            if (command === 'copilot_install' || command === 'codex_install') {
+              const provider=command.split('_')[0];
+              if (!args.confirmed) throw Error('Installation requires confirmation');
+              mock.cliInstallCalls=(mock.cliInstallCalls||0)+1;
+              if(mock.cliInstallFail) throw Error('Windows Package Manager failed (fixture)');
+              if(mock.cliInstallDefer) await new Promise(resolve=>{mock.cliInstallResolve=resolve;});
+              mock[provider+'Missing']=false;
+              return {installed:true,wingetAvailable:true};
+            }
+            if (command === 'codex_connect') {
+              mock.codexSignIn=args.signIn;
+              if(mock.codexConnectFail) throw Error('Sign in with ChatGPT first; API-key accounts are not accepted');
+              return {connectionId:'test-codex-session',login:'fixture@example.test',plan:'plus'};
+            }
+            if (command === 'codex_edit_texture') {
+              mock.codexEdits ||= [];mock.codexEdits.push(structuredClone(args));
+              if(mock.codexFail) throw Error('Codex image generation refused or subscription limit reached');
+              if(mock.codexDefer) await new Promise(resolve=>{mock.codexResolve=resolve;});
+              const image=new Image();image.src=args.png;await image.decode();
+              const png=await window.previewTest.variantPng('#6478c0',image.width,image.height);
+              return {png,originalPng:mock.codexMissingOriginal?null:png};
+            }
+            if (command === 'copilot_connect') {
+              mock.copilotSignIn=args.signIn;
+              if(mock.copilotConnectFail) throw Error('Sign in to GitHub Copilot first');
+              return {connectionId:'test-copilot-session',login:'fixture-user'};
+            }
+            if (command === 'copilot_edit_texture') {
+              mock.copilotEdits ||= [];mock.copilotEdits.push(structuredClone(args));
+              if(mock.copilotFail) throw Error('Copilot image tool refused this request');
+              if(mock.copilotDefer) await new Promise(resolve=>{mock.copilotResolve=resolve;});
+              const image=new Image();image.src=args.png;await image.decode();
+              const png=await window.previewTest.variantPng('#168877',image.width,image.height);
+              return {png,originalPng:mock.copilotMissingOriginal?null:png};
+            }
+            if (command === 'openai_connect') {
+              mock.openaiKeyReceived=args.apiKey;
+              return {connectionId:'test-openai-session'};
+            }
+            if (command === 'openai_edit_texture') {
+              mock.openaiEdits ||= [];mock.openaiEdits.push(structuredClone(args));
+              if(mock.openaiFail) throw Error('OpenAI API HTTP 429: insufficient_quota. Check API billing.');
+              if(mock.openaiDefer) await new Promise(resolve=>{mock.openaiResolve=resolve;});
+              const image=new Image();image.src=args.png;await image.decode();
+              return window.previewTest.variantPng(mock.openaiColor||'#458899',image.width,image.height);
+            }
+            if (command === 'mcp_connect' || command === 'mcp_signin') {
+              mock.mcpConnectionArgs={command,...args};
+              return {connectionId:'test-mcp-session',tools:[
+                {name:'edit_image',description:'Cosmetic editing <script>not executable</script>',
+                  inputSchema:{type:'object',properties:{prompt:{type:'string'},image:{type:'string'}}}},
+                {name:'other_tool',description:'Not an image editor',inputSchema:{type:'object'}}
+              ]};
+            }
+            if (command === 'mcp_edit_texture') {
+              mock.mcpEdits ||= [];mock.mcpEdits.push(structuredClone(args));
+              if (mock.mcpFailAt === mock.mcpEdits.length) throw Error('Provider refused this request');
+              if (mock.mcpDefer) await new Promise(resolve=>{mock.mcpResolve=resolve;});
+              const image=new Image();image.src=args.png;await image.decode();
+              return window.previewTest.variantPng(mock.mcpColor||'#1988cc',image.width,image.height);
+            }
             if (command === 'combine_shared_texture') {
               mock.combineArgs=args;
               if (mock.failCombine) throw Error('Simulated UV inspection failure');
@@ -1920,6 +2072,436 @@ with sync_playwright() as playwright:
         page.wait_for_function("draftMock.mergeInstalls===3")
         page.evaluate("draftMock.installConflicts=[];draftMock.mergeConflicts=[];draftMock.installAffectedModels=[];draftMock.mergeAffectedModels=[]")
         print("PASS: component merge option, merged-result review/cancel, scoped selection, protected-region errors, all/saved installs and unchanged component sources")
+
+        page.evaluate("""async () => {
+          delete draftMock.componentFixture;delete draftMock.combinedPng;draftMock.componentConflict=false;
+          await previewTest.open('models/perpheads/weapons/c_ak101.mdl');
+          previewTest.setupVariantFixture();
+        }""")
+        initial_mcp_state = page.evaluate("previewTest.mcpDraftFingerprint()")
+        expected_targets = page.evaluate("(async()=> (await previewTest.snapshotMcpDraft()).targets.length)()")
+        assert expected_targets > 1, "MCP fixture must include multiple parts"
+        installs_before_mcp = page.evaluate("draftMock.calls.filter(command=>command.startsWith('install_')).length")
+        page.locator("#open-mcp").click()
+        assert page.locator("#ai-provider").input_value() == "copilot"
+        assert page.locator("#copilot-settings").is_visible()
+        assert page.locator("#openai-settings").is_hidden()
+        assert page.locator("#mcp-connection-settings").is_hidden()
+        assert page.locator("#ai-account-badge").inner_text() == "Not connected"
+        assert page.locator("#mcp-disconnect").is_hidden()
+        assert page.locator("#mcp-dialog p.note:visible").count() == 1
+        assert page.locator("#mcp-content-warning").inner_text() == (
+            "Generating weapon skins may trigger the AI provider's content filters. "
+            "These restrictions come from the provider, not Texture Helper."
+        )
+        assert page.evaluate("(draftMock.cliInstallCalls||0)") == 0
+        page.evaluate("draftMock.copilotMissing=true")
+        page.locator("#mcp-close").click()
+        page.locator("#open-mcp").click()
+        page.locator("#copilot-install").wait_for(state="visible")
+        assert page.locator("#copilot-connect").is_disabled()
+        assert page.locator("#copilot-signin").is_disabled()
+        page.evaluate("window.originalConfirm=window.confirm;window.confirm=()=>false")
+        page.locator("#copilot-install").click()
+        assert page.evaluate("(draftMock.cliInstallCalls||0)") == 0
+        page.evaluate("window.confirm=()=>true;draftMock.cliInstallFail=true")
+        page.locator("#copilot-install").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.includes('CLI installation failed')")
+        assert page.locator("#copilot-install").is_visible()
+        assert page.locator("#copilot-connect").is_disabled()
+        page.evaluate("draftMock.cliInstallFail=false;draftMock.cliInstallDefer=true")
+        page.locator("#copilot-install").click()
+        page.wait_for_function("!!draftMock.cliInstallResolve")
+        assert page.locator("#mcp-close").is_disabled()
+        assert page.locator("#ai-provider").is_disabled()
+        page.keyboard.press("Escape")
+        assert page.locator("#mcp-dialog").is_visible()
+        page.evaluate("draftMock.cliInstallDefer=false;draftMock.cliInstallResolve();delete draftMock.cliInstallResolve;window.confirm=window.originalConfirm")
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('CLI installed')")
+        assert page.locator("#copilot-install").is_hidden()
+        assert page.locator("#copilot-connect").is_enabled()
+        assert page.evaluate("draftMock.cliInstallCalls") == 2
+        page.evaluate("draftMock.copilotConnectFail=true")
+        page.locator("#copilot-connect").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.includes('Sign in to GitHub')")
+        assert page.locator("#mcp-request").evaluate("element=>element.disabled")
+        page.evaluate("draftMock.copilotConnectFail=false")
+        page.locator("#copilot-signin").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('Copilot connected')")
+        assert page.evaluate("draftMock.copilotSignIn") is True
+        assert page.locator("#ai-account-name").inner_text() == "@fixture-user"
+        assert page.locator("#ai-account-detail").inner_text() == "Signed in with GitHub"
+        assert page.locator("#ai-account-badge").inner_text() == "Connected"
+        assert page.locator("#copilot-signin").is_hidden()
+        assert page.locator("#copilot-connect").is_hidden()
+        assert page.locator("#mcp-disconnect").is_visible()
+        assert page.evaluate("(draftMock.copilotEdits||[]).length") == 0
+        page.locator("#mcp-prompt").fill("Blue and gold fictional game texture")
+        page.locator("#mcp-generate").click()
+        assert "consent" in page.locator("#mcp-status").inner_text()
+        page.locator("#mcp-consent").check()
+        page.evaluate("document.getElementById('mcp-arguments').value='ignored for Copilot'")
+        check_reference_modes("copilot")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("!document.getElementById('mcp-apply').disabled")
+        assert page.evaluate("draftMock.copilotEdits.length") == expected_targets
+        assert page.evaluate("draftMock.copilotEdits.every(edit=>!('apiKey' in edit)&&!('model' in edit)&&!('tool' in edit))")
+        assert page.evaluate("previewTest.mcpDraftFingerprint()") == initial_mcp_state
+        if args.screenshot:
+            page.locator("#mcp-dialog").screenshot(path=str(args.screenshot.with_name("copilot-draft-preview.png")))
+        original_pngs = page.locator("#mcp-previews section").evaluate_all(
+            "cards=>cards.map(card=>card.querySelectorAll('img')[1].src)")
+        page.locator("#mcp-apply").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('Applied and saved')")
+        retained = page.evaluate("Array.from(draftMock.saved.values()).at(-1).aiOriginals")
+        assert [original["png"] for original in retained] == original_pngs
+        assert all(original["label"].startswith("GitHub Copilot original:") for original in retained)
+        assert len({original["id"] for original in retained}) == expected_targets
+        assert page.evaluate("draftMock.calls.filter(command=>command.startsWith('install_')).length") == installs_before_mcp
+        copilot_applied = page.evaluate("previewTest.mcpDraftFingerprint()")
+        check_content_block("GitHub Copilot")
+        page.evaluate("draftMock.copilotFail=true")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.includes('refused')")
+        assert page.locator("#mcp-apply").is_disabled()
+        assert page.evaluate("previewTest.mcpDraftFingerprint()") == copilot_applied
+        page.evaluate("draftMock.copilotFail=false;draftMock.copilotMissingOriginal=true")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.includes('original PNG')")
+        assert page.locator("#mcp-apply").is_disabled()
+        assert page.evaluate("previewTest.mcpDraftFingerprint()") == copilot_applied
+        page.evaluate("draftMock.copilotMissingOriginal=false;draftMock.copilotEdits=[];draftMock.copilotDefer=true")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("!!draftMock.copilotResolve")
+        page.locator("#mcp-close").click()
+        page.evaluate("draftMock.copilotDefer=false;draftMock.copilotResolve();delete draftMock.copilotResolve")
+        page.wait_for_function("!document.getElementById('mcp-settings').disabled")
+        assert page.evaluate("draftMock.copilotEdits.length") == 1
+        assert page.evaluate("previewTest.mcpDraftFingerprint()") == copilot_applied
+        page.locator("#open-mcp").click()
+        assert page.locator("#ai-account-name").inner_text() == "@fixture-user"
+        page.locator("#mcp-disconnect").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('Disconnected.')")
+        assert "CLI remains signed in" in page.locator("#mcp-status").inner_text()
+        assert page.locator("#ai-account-badge").inner_text() == "Not connected"
+        assert page.locator("#ai-account-name").inner_text() == "GitHub Copilot"
+        assert page.locator("#copilot-connect").is_visible()
+        page.locator("#copilot-connect").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('Copilot connected')")
+        assert page.evaluate("draftMock.copilotSignIn") is False
+        page.locator("#mcp-consent").check()
+        # Refuse over-capacity batches before sending any image to the provider.
+        page.evaluate("""async () => {
+          const captured=await previewTest.snapshotMcpDraft();
+          const first=captured.session.aiOriginals[0];
+          captured.session.aiOriginals=Array.from({length:24},(_,index)=>({...first,id:`capacity-${index}`}));
+        }""")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.includes('24 saved AI originals')")
+        assert page.evaluate("draftMock.copilotEdits.length") == 1
+        page.locator("#mcp-close").click()
+        page.evaluate("""async () => {
+          await previewTest.open('models/perpheads/weapons/c_ak101.mdl');
+          previewTest.setupVariantFixture();
+        }""")
+        initial_mcp_state = page.evaluate("previewTest.mcpDraftFingerprint()")
+        page.locator("#open-mcp").click()
+        page.locator("#ai-provider").select_option("openai")
+        assert page.locator("#ai-account-name").inner_text() == "OpenAI API"
+        assert page.locator("#ai-account-badge").inner_text() == "Not connected"
+        page.locator("#ai-provider").select_option("codex")
+        assert page.locator("#ai-account-name").inner_text() == "ChatGPT / Codex"
+        assert page.locator("#openai-settings").is_hidden()
+        assert page.locator("#mcp-connection-settings").is_hidden()
+        page.evaluate("draftMock.codexMissing=true")
+        page.locator("#mcp-close").click()
+        page.locator("#open-mcp").click()
+        page.locator("#codex-install").wait_for(state="visible")
+        assert page.locator("#codex-signin").is_disabled()
+        page.locator("#codex-install").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('CLI installed')")
+        assert page.locator("#codex-install").is_hidden()
+        assert page.locator("#codex-signin").is_enabled()
+        page.evaluate("draftMock.codexConnectFail=true")
+        page.locator("#codex-connect").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.includes('API-key accounts are not accepted')")
+        assert page.locator("#mcp-request").evaluate("element=>element.disabled")
+        page.evaluate("draftMock.codexConnectFail=false")
+        page.locator("#codex-signin").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('ChatGPT connected')")
+        assert page.evaluate("draftMock.codexSignIn") is True
+        assert page.locator("#ai-account-name").inner_text() == "fixture@example.test"
+        assert page.locator("#ai-account-detail").inner_text() == "ChatGPT / plus subscription"
+        assert page.locator("#ai-account-badge").inner_text() == "Connected"
+        assert page.locator("#codex-signin").is_hidden()
+        assert page.locator("#mcp-dialog p.note:visible").count() == 1
+        assert page.evaluate("(draftMock.codexEdits||[]).length") == 0
+        page.locator("#mcp-prompt").fill("Blue and silver fictional game UV texture")
+        page.locator("#mcp-generate").click()
+        assert "consent" in page.locator("#mcp-status").inner_text()
+        page.locator("#mcp-consent").check()
+        page.evaluate("document.getElementById('mcp-arguments').value='ignored by Codex'")
+        check_reference_modes("codex")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("!document.getElementById('mcp-apply').disabled")
+        assert page.evaluate("draftMock.codexEdits.length") == expected_targets
+        assert page.evaluate("draftMock.codexEdits.every(edit=>!('apiKey' in edit)&&!('model' in edit)&&!('tool' in edit))")
+        assert page.evaluate("previewTest.mcpDraftFingerprint()") == initial_mcp_state
+        if args.screenshot:
+            page.locator("#mcp-dialog").screenshot(path=str(args.screenshot.with_name("codex-draft-preview.png")))
+        codex_originals = page.locator("#mcp-previews section").evaluate_all(
+            "cards=>cards.map(card=>card.querySelectorAll('img')[1].src)")
+        page.locator("#mcp-apply").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('Applied and saved')")
+        retained = page.evaluate("Array.from(draftMock.saved.values()).at(-1).aiOriginals")
+        assert [original["png"] for original in retained] == codex_originals
+        assert all(original["label"].startswith("ChatGPT / Codex original:") for original in retained)
+        assert page.evaluate("draftMock.calls.filter(command=>command.startsWith('install_')).length") == installs_before_mcp
+        codex_applied = page.evaluate("previewTest.mcpDraftFingerprint()")
+        check_content_block("ChatGPT / Codex")
+        page.evaluate("draftMock.codexFail=true")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.includes('subscription limit')")
+        assert page.locator("#mcp-apply").is_disabled()
+        assert page.evaluate("previewTest.mcpDraftFingerprint()") == codex_applied
+        page.evaluate("draftMock.codexFail=false;draftMock.codexMissingOriginal=true")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.includes('original PNG')")
+        assert page.locator("#mcp-apply").is_disabled()
+        page.evaluate("draftMock.codexMissingOriginal=false;draftMock.codexEdits=[];draftMock.codexDefer=true")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("!!draftMock.codexResolve")
+        page.locator("#mcp-close").click()
+        page.evaluate("draftMock.codexDefer=false;draftMock.codexResolve();delete draftMock.codexResolve")
+        page.wait_for_function("!document.getElementById('mcp-settings').disabled")
+        assert page.evaluate("draftMock.codexEdits.length") == 1
+        assert page.evaluate("previewTest.mcpDraftFingerprint()") == codex_applied
+        page.locator("#open-mcp").click()
+        page.locator("#codex-connect").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('ChatGPT connected')")
+        page.locator("#mcp-disconnect").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('Disconnected.')")
+        assert page.locator("#ai-account-name").inner_text() == "ChatGPT / Codex"
+        page.locator("#codex-connect").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('ChatGPT connected')")
+        assert page.evaluate("draftMock.codexSignIn") is False
+        page.locator("#mcp-close").click()
+        page.evaluate("""async () => {
+          await previewTest.open('models/perpheads/weapons/c_ak101.mdl');
+          previewTest.setupVariantFixture();
+        }""")
+        initial_mcp_state = page.evaluate("previewTest.mcpDraftFingerprint()")
+        page.locator("#open-mcp").click()
+        page.locator("#ai-provider").select_option("openai")
+        print("PASS: explicit CLI installation consent/progress/errors, ChatGPT Codex sign-in/account, subscription-only requests, original persistence, refusals, cancellation and no automatic game installation")
+        print("PASS: Copilot sign-in/connect without API keys, no automatic generation, consent, previews, exact original persistence, refusals, missing provenance, cancellation, capacity preflight and no automatic installation")
+        assert page.locator("#ai-provider").input_value() == "openai"
+        assert page.locator("#openai-settings").is_visible()
+        assert page.locator("#mcp-connection-settings").is_hidden()
+        assert page.locator("#mcp-dialog p.note:visible").count() == 1
+        page.locator("#openai-connect").click()
+        assert "API key" in page.locator("#mcp-status").inner_text()
+        assert page.evaluate("(draftMock.openaiEdits||[]).length") == 0
+        page.locator("#openai-key").fill("fixture-openai-key")
+        page.locator("#openai-connect").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('API key ready')")
+        assert "not been verified" in page.locator("#mcp-status").inner_text()
+        assert page.locator("#openai-key").input_value() == ""
+        assert page.evaluate("draftMock.openaiKeyReceived") == "fixture-openai-key"
+        assert not page.evaluate("Object.values(localStorage).some(value=>value.includes('fixture-openai-key'))")
+        page.locator("#mcp-prompt").fill("Blue and gold cosmetic texture")
+        page.locator("#mcp-generate").click()
+        assert "consent" in page.locator("#mcp-status").inner_text()
+        assert page.evaluate("(draftMock.openaiEdits||[]).length") == 0
+        page.locator("#mcp-consent").check()
+        page.evaluate("document.getElementById('mcp-arguments').value='not JSON; ignored for OpenAI'")
+        page.locator("#openai-model").fill("not a model")
+        page.locator("#mcp-generate").click()
+        assert "model ID" in page.locator("#mcp-status").inner_text()
+        assert page.evaluate("(draftMock.openaiEdits||[]).length") == 0
+        page.locator("#openai-model").fill("gpt-image-2.5-sunburst")
+        page.locator("#openai-quality").select_option("low")
+        check_reference_modes("openai")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("!document.getElementById('mcp-apply').disabled")
+        assert page.evaluate("draftMock.openaiEdits.length") == expected_targets
+        assert page.evaluate("draftMock.openaiEdits.every(edit=>edit.model==='gpt-image-2.5-sunburst'&&edit.quality==='low'&&!('apiKey' in edit))")
+        assert page.evaluate("previewTest.mcpDraftFingerprint()") == initial_mcp_state
+        if args.screenshot:
+            page.locator("#mcp-dialog").screenshot(path=str(args.screenshot.with_name("openai-draft-preview.png")))
+        page.locator("#mcp-apply").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('Applied and saved')")
+        assert page.evaluate("previewTest.draftState().edits.length") == expected_targets
+        assert page.evaluate("draftMock.calls.filter(command=>command.startsWith('install_')).length") == installs_before_mcp
+        openai_applied = page.evaluate("previewTest.mcpDraftFingerprint()")
+        check_content_block("OpenAI API")
+        page.evaluate("draftMock.openaiFail=true")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.includes('insufficient_quota')")
+        assert page.locator("#mcp-apply").is_disabled()
+        assert page.evaluate("previewTest.mcpDraftFingerprint()") == openai_applied
+        page.evaluate("draftMock.openaiFail=false;draftMock.openaiEdits=[];draftMock.openaiDefer=true")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("!!draftMock.openaiResolve")
+        page.locator("#mcp-close").click()
+        page.evaluate("draftMock.openaiDefer=false;draftMock.openaiResolve();delete draftMock.openaiResolve")
+        page.wait_for_function("!document.getElementById('mcp-settings').disabled")
+        assert page.evaluate("draftMock.openaiEdits.length") == 1
+        assert page.evaluate("previewTest.mcpDraftFingerprint()") == openai_applied
+        page.locator("#open-mcp").click()
+        page.locator("#ai-provider").select_option("mcp")
+        assert page.locator("#mcp-request").evaluate("element=>element.disabled")
+        assert page.locator("#mcp-consent").is_checked() is False
+        assert page.locator("#openai-settings").is_hidden()
+        assert page.locator("#mcp-connection-settings").is_visible()
+        page.evaluate("document.getElementById('mcp-arguments').value=JSON.stringify({prompt:'$PROMPT',image:'$IMAGE'})")
+        print("PASS: direct OpenAI API-key setup, no key persistence, provider-specific model/quality, consent/validation, whole-draft preview/apply, billing errors, cancellation and credential clearing on provider switch")
+        page.evaluate("""async () => {
+          await previewTest.open('models/perpheads/weapons/c_ak101.mdl');
+          previewTest.setupVariantFixture();
+        }""")
+        initial_mcp_state = page.evaluate("previewTest.mcpDraftFingerprint()")
+        page.locator("#mcp-url").fill("https://mcp.example.test/mcp")
+        page.locator("#mcp-token").fill("fixture-token")
+        page.locator("#mcp-connect").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('Connected.')")
+        assert page.locator("#mcp-token").input_value() == ""
+        assert page.locator("#mcp-tool option").count() == 2
+        assert page.locator("#mcp-tool-description script").count() == 0
+        assert "<script>" in page.locator("#mcp-tool-description").inner_text()
+        assert not page.evaluate("Object.values(localStorage).some(value=>value.includes('fixture-token'))")
+        page.locator("#mcp-prompt").fill("A blue and gold cosmetic game skin")
+        page.locator("#mcp-generate").click()
+        assert "consent" in page.locator("#mcp-status").inner_text()
+        assert page.evaluate("(draftMock.mcpEdits||[]).length") == 0
+        page.locator("#mcp-consent").check()
+        page.locator("#mcp-arguments").fill('{"prompt":"$PROMPT"}')
+        page.locator("#mcp-generate").click()
+        assert "image" in page.locator("#mcp-status").inner_text().lower()
+        assert page.evaluate("(draftMock.mcpEdits||[]).length") == 0
+        page.locator("#mcp-arguments").fill('{"prompt":"$PROMPT","image":"$IMAGE"}')
+        check_reference_modes("mcp")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("!document.getElementById('mcp-apply').disabled")
+        assert page.locator("#mcp-previews section").count() == expected_targets
+        assert page.evaluate("draftMock.mcpEdits.length") == expected_targets
+        assert page.evaluate("previewTest.mcpDraftFingerprint()") == initial_mcp_state
+        if args.screenshot:
+            page.locator("#mcp-dialog").screenshot(path=str(args.screenshot.with_name("mcp-draft-preview.png")))
+        page.locator("#mcp-apply").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('Applied and saved')")
+        assert page.evaluate("previewTest.draftState().edits.length") == expected_targets
+        mcp_draft_id = page.evaluate("previewTest.draftState().id")
+        assert page.evaluate("id=>draftMock.saved.get(id).textures.length", mcp_draft_id) == expected_targets
+        assert page.evaluate("draftMock.calls.filter(command=>command.startsWith('install_')).length") == installs_before_mcp
+        applied_mcp_state = page.evaluate("previewTest.mcpDraftFingerprint()")
+        check_content_block("MCP provider")
+
+        page.evaluate("draftMock.mcpEdits=[];draftMock.mcpFailAt=2;draftMock.mcpColor='#cc8819'")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.includes('Provider refused')")
+        assert page.locator("#mcp-previews section").count() == 0
+        assert page.locator("#mcp-apply").is_disabled()
+        assert page.evaluate("previewTest.mcpDraftFingerprint()") == applied_mcp_state
+
+        page.evaluate("delete draftMock.mcpFailAt;draftMock.mcpDefer=true;draftMock.mcpEdits=[]")
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("!!draftMock.mcpResolve")
+        page.locator("#mcp-close").click()
+        page.evaluate("draftMock.mcpDefer=false;draftMock.mcpResolve();delete draftMock.mcpResolve")
+        page.wait_for_function("!document.getElementById('mcp-settings').disabled")
+        assert page.evaluate("draftMock.mcpEdits.length") == 1
+        assert page.evaluate("previewTest.mcpDraftFingerprint()") == applied_mcp_state
+        page.locator("#open-mcp").click()
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("!document.getElementById('mcp-apply').disabled")
+        page.evaluate("""async () => {
+          await previewTest.open('models/perpheads/weapons/c_makarov.mdl');
+          previewTest.setupVariantFixture();
+        }""")
+        new_mcp_state = page.evaluate("previewTest.mcpDraftFingerprint()")
+        page.locator("#mcp-apply").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.includes('changed after generation')")
+        assert page.evaluate("previewTest.mcpDraftFingerprint()") == new_mcp_state
+        assert page.evaluate("previewTest.draftState().edits.length") == 0
+
+        page.locator("#mcp-disconnect").click()
+        page.wait_for_function("document.getElementById('mcp-request').disabled")
+        page.locator("#mcp-signin").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('Connected.')")
+        assert page.evaluate("draftMock.mcpConnectionArgs.command") == "mcp_signin"
+        assert page.locator("#mcp-consent").is_checked() is False
+        page.locator("#mcp-consent").check()
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("!document.getElementById('mcp-apply').disabled")
+        page.evaluate("draftMock.failSave=true")
+        page.locator("#mcp-apply").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.includes('saving failed')")
+        assert page.evaluate("previewTest.draftState().edits.length") > 0
+        assert page.locator("#mcp-apply").is_disabled()
+        page.evaluate("draftMock.failSave=false")
+        page.locator("#mcp-close").click()
+        page.evaluate("previewTest.saveDraft()")
+        print("PASS: MCP tool discovery/sign-in routing, schema safety, consent/argument validation, all-part previews, explicit atomic apply/autosave, refusal/cancel/stale-draft rejection and no installation")
+
+        mcp_sources = page.evaluate("""async () => {
+          await previewTest.open('models/perpheads/weapons/c_ak101.mdl');
+          await previewTest.setSlotAttachment('SLOT_STOCK','stock_ak101');
+          previewTest.setupVariantFixture();
+          const shared=previewTest.setupSharedComposition();
+          const initial=await previewTest.snapshotMcpDraft();
+          const atlas=initial.targets.filter(target=>target.layers.some(layer=>layer.material.vmtPath===shared.material.vmtPath));
+          const detachedKey=await previewTest.addDetachedMcpEdit();
+          const detached=await previewTest.snapshotMcpDraft();
+          const componentKeys=previewTest.splitMcpComponents();
+          const captured=await previewTest.snapshotMcpDraft();
+          const slotSelectionsBefore=previewTest.draftState().selections;
+          const results=await Promise.all(captured.targets.map(async target=>{
+            const png=previewTest.variantPng('#aabbcc',target.width,target.height),image=new Image();
+            image.src=png;await image.decode();return {target,png,image};
+          }));
+          await previewTest.applyMcpDraft(captured,results);
+          const saved=draftMock.saved.get(previewTest.draftState().id);
+          return {
+            sharedSources:atlas.length,sharedOwners:atlas[0].layers.length,
+            beforeDetached:initial.targets.length,afterDetached:detached.targets.length,
+            componentKeys,componentSources:captured.targets.filter(target=>target.component).length,
+            savedComponentSources:saved.componentTextures.length,detachedSaved:saved.textures.some(texture=>texture.key===detachedKey),
+            slotsUnchanged:JSON.stringify(slotSelectionsBefore)===JSON.stringify(saved.slotSelections),
+            materialsPreserved:saved.textures.filter(texture=>texture.vmtPath===shared.material.vmtPath).every(texture=>texture.vmtText===shared.material.vmtText)
+          };
+        }""")
+        assert mcp_sources["sharedSources"] == 1
+        assert mcp_sources["sharedOwners"] == 2
+        assert mcp_sources["afterDetached"] == mcp_sources["beforeDetached"] + 1
+        assert mcp_sources["componentSources"] == len(mcp_sources["componentKeys"]) == 2
+        assert mcp_sources["savedComponentSources"] == 2
+        assert mcp_sources["detachedSaved"] and mcp_sources["slotsUnchanged"] and mcp_sources["materialsPreserved"]
+        page.evaluate("previewTest.setMcpAlphaSource()")
+        page.locator("#open-mcp").click()
+        assert not page.locator("#mcp-send-original").is_checked()
+        source_alpha = page.evaluate("""async () => previewTest.alphaValues(
+            (await previewTest.snapshotMcpDraft()).targets[0].png)""")
+        assert 0 in source_alpha and any(0 < alpha < 255 for alpha in source_alpha)
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("!document.getElementById('mcp-apply').disabled")
+        result_alpha = page.locator("#mcp-previews section").first.locator("img").nth(1).evaluate(
+            "image=>previewTest.alphaValues(image.src)")
+        assert result_alpha == source_alpha
+        page.locator("#mcp-close").click()
+        print("PASS: every provider sends UV-only pixels by default, original texture only after opt-in, hidden layers do not change AI guides, and source alpha is restored locally")
+        page.evaluate("draftMock.componentConflict=true")
+        page.locator("#open-mcp").click()
+        page.locator("#mcp-generate").click()
+        page.wait_for_function("!document.getElementById('mcp-apply').disabled")
+        page.locator("#mcp-apply").click()
+        page.wait_for_function("document.getElementById('mcp-status').textContent.includes('Installation is blocked')")
+        assert "7 UV pixels" in page.locator("#mcp-status").inner_text()
+        assert "error" in page.locator("#mcp-status").get_attribute("class")
+        page.locator("#mcp-close").click()
+        page.evaluate("draftMock.componentConflict=false")
+        print("PASS: MCP groups shared atlases, includes detached saved edits, preserves separate component sources, material scripts and attachment selections")
+        print("PASS: MCP save failures retain local edits with retry instructions; generated UV conflicts explicitly block installation")
 
         if args.screenshot:
             for gun, sight, suffix in (("g36", "", "-g36"), ("m4a1", "", "-irons-up"), ("m4a1", "eotech", "-irons-down")):
