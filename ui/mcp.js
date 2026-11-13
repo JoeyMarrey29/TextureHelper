@@ -15,6 +15,27 @@ export function startMcp({invoke, snapshot, apply, toast}) {
     proposal = null;
     $('mcp-previews').replaceChildren();
     $('mcp-apply').disabled = true;
+    $('mcp-apply').textContent = 'Apply all to local draft';
+  };
+  const textureCard = target => {
+    const card = document.createElement('section'); card.className = 'ai-texture-card';
+    const header = document.createElement('div'); header.className = 'ai-texture-heading';
+    const heading = document.createElement('h3'); heading.textContent = target.label;
+    const badge = document.createElement('span'); badge.className = 'ai-texture-badge';
+    badge.setAttribute('role', 'status');
+    const progress = document.createElement('progress'); progress.max = 1;
+    progress.setAttribute('aria-label', `Generation progress: ${target.label}`);
+    const detail = document.createElement('p'); detail.className = 'ai-texture-detail';
+    header.append(heading, badge); card.append(header, progress, detail);
+    const update = (state, message) => {
+      card.dataset.state = state; badge.textContent = state;
+      card.setAttribute('aria-busy', String(state === 'Generating' || state === 'Validating'));
+      detail.textContent = message;
+      if (state === 'Generating' || state === 'Validating') progress.removeAttribute('value');
+      else progress.value = state === 'Queued' ? 0 : 1;
+    };
+    update('Queued', 'Waiting to send');
+    return {card, update};
   };
   const accountControls = () => {
     const connected = !!connection, copilot = isCopilot(), codex = isCodex(), openai = isOpenAi();
@@ -193,58 +214,66 @@ export function startMcp({invoke, snapshot, apply, toast}) {
       if ((copilot || codex) && captured.originalCount + captured.targets.length > 24) {
         throw Error('This batch would exceed the draft limit of 24 saved AI originals. No textures were sent; use a draft with room for this batch.');
       }
-      const results = [];
-      for (const target of captured.targets) {
-        status(`Generating ${results.length + 1} of ${captured.targets.length}: ${target.label}. ${captured.note} No local edits applied.`);
-        const reference = sendOriginal ? target.png : target.referencePng;
-        if (!reference) throw Error(`Missing ${sendOriginal ? 'texture' : 'UV overlay'} reference for ${target.label}. No original texture was sent.`);
-        const referencePrompt = sendOriginal ? `The attached image is the current texture reference. Use its existing detail and layout as the basis for this cosmetic edit.\n${prompt}`
-          : `The attached image is a UV wireframe guide only, not the original texture. Create a new cosmetic texture using its UV island positions and dimensions. Do not reproduce the guide lines in the finished texture.\n${prompt}`;
-        const shared = {connectionId, prompt:referencePrompt, png:reference, label:target.label};
-        const output = codex ? await invoke('codex_edit_texture', shared) : copilot
-          ? await invoke('copilot_edit_texture', shared)
-          : openai
-          ? await invoke('openai_edit_texture', {...shared, model, quality})
-          : await invoke('mcp_edit_texture', {...shared, tool, arguments:argumentsTemplate});
-        if (current !== operation) return;
-        let png = copilot || codex ? output.png : output;
-        const originalPng = copilot || codex ? output.originalPng : null;
-        if (copilot || codex) {
-          if (typeof originalPng !== 'string' || !originalPng.startsWith('data:image/png;base64,')) throw Error('The AI provider did not return its original PNG; no edits applied.');
-          const original = new Image(); original.src = originalPng; await original.decode();
+      const results = [], failed = [];
+      const cards = captured.targets.map(textureCard);
+      $('mcp-previews').replaceChildren(...cards.map(({card}) => card));
+      for (const [index, target] of captured.targets.entries()) {
+        const {card, update} = cards[index];
+        update('Generating', 'Sending reference and waiting for the provider. Progress percentage is unavailable.');
+        status(`Generating ${index + 1} of ${captured.targets.length}: ${target.label}. ${captured.note} No local edits applied.`);
+        try {
+          const reference = sendOriginal ? target.png : target.referencePng;
+          if (!reference) throw Error(`Missing ${sendOriginal ? 'texture' : 'UV overlay'} reference for ${target.label}. No original texture was sent.`);
+          const referencePrompt = sendOriginal ? `The attached image is the current texture reference. Use its existing detail and layout as the basis for this cosmetic edit.\n${prompt}`
+            : `The attached image is a UV wireframe guide only, not the original texture. Create a new cosmetic texture using its UV island positions and dimensions. Do not reproduce the guide lines in the finished texture.\n${prompt}`;
+          const shared = {connectionId, prompt:referencePrompt, png:reference, label:target.label};
+          const output = codex ? await invoke('codex_edit_texture', shared) : copilot
+            ? await invoke('copilot_edit_texture', shared)
+            : openai
+            ? await invoke('openai_edit_texture', {...shared, model, quality})
+            : await invoke('mcp_edit_texture', {...shared, tool, arguments:argumentsTemplate});
+          if (current !== operation) return;
+          update('Validating', 'Checking the returned image and restoring local alpha');
+          let png = copilot || codex ? output.png : output;
+          const originalPng = copilot || codex ? output.originalPng : null;
+          if (copilot || codex) {
+            if (typeof originalPng !== 'string' || !originalPng.startsWith('data:image/png;base64,')) throw Error('The AI provider did not return its original PNG; no edits applied.');
+            const original = new Image(); original.src = originalPng; await original.decode();
+          }
+          const image = new Image(); image.src = png; await image.decode();
+          if (current !== operation) return;
+          if (image.width !== target.width || image.height !== target.height) throw Error(`Unexpected output size for ${target.label}.`);
+          if (!sendOriginal) {
+            const source = new Image(); source.src = target.png; await source.decode();
+            const canvas = document.createElement('canvas'); canvas.width = target.width; canvas.height = target.height;
+            const context = canvas.getContext('2d', {willReadFrequently:true});
+            context.drawImage(source, 0, 0);
+            const alpha = context.getImageData(0, 0, target.width, target.height).data;
+            context.clearRect(0, 0, target.width, target.height); context.drawImage(image, 0, 0);
+            const edited = context.getImageData(0, 0, target.width, target.height);
+            for (let pixel = 3; pixel < edited.data.length; pixel += 4) edited.data[pixel] = alpha[pixel];
+            context.putImageData(edited, 0, 0); png = canvas.toDataURL('image/png');
+            image.src = png; await image.decode();
+          }
+          if (current !== operation) return;
+          const comparison = document.createElement('div'); comparison.className = 'install-comparison';
+          for (const [label, source] of [['Current', target.png], ['Proposed', png]]) {
+            const item = document.createElement('div'), title = document.createElement('h3'), preview = document.createElement('img');
+            title.textContent = label; preview.src = source; preview.alt = `${label}: ${target.label}`;
+            item.append(title, preview); comparison.append(item);
+          }
+          card.append(comparison);
+          update('Ready', 'Preview retained. Apply to save this result to the local draft.');
+          results.push({target, png, image, originalPng, originalProvider:codex ? 'ChatGPT / Codex' : 'GitHub Copilot'});
+        } catch (error) {
+          if (current !== operation) return;
+          failed.push({target, reason:String(error)});
+          update('Failed', `${String(error)} This texture will remain unchanged.`);
         }
-        const image = new Image(); image.src = png; await image.decode();
-        if (current !== operation) return;
-        if (image.width !== target.width || image.height !== target.height) throw Error(`Unexpected output size for ${target.label}.`);
-        if (!sendOriginal) {
-          const source = new Image(); source.src = target.png; await source.decode();
-          const canvas = document.createElement('canvas'); canvas.width = target.width; canvas.height = target.height;
-          const context = canvas.getContext('2d', {willReadFrequently:true});
-          context.drawImage(source, 0, 0);
-          const alpha = context.getImageData(0, 0, target.width, target.height).data;
-          context.clearRect(0, 0, target.width, target.height); context.drawImage(image, 0, 0);
-          const edited = context.getImageData(0, 0, target.width, target.height);
-          for (let pixel = 3; pixel < edited.data.length; pixel += 4) edited.data[pixel] = alpha[pixel];
-          context.putImageData(edited, 0, 0); png = canvas.toDataURL('image/png');
-          image.src = png; await image.decode();
-        }
-        if (current !== operation) return;
-        results.push({target, png, image, originalPng, originalProvider:codex ? 'ChatGPT / Codex' : 'GitHub Copilot'});
       }
-      const cards = results.map(({target, png}) => {
-        const card = document.createElement('section'); card.className = 'install-conflict';
-        const heading = document.createElement('h3'); heading.textContent = target.label;
-        const comparison = document.createElement('div'); comparison.className = 'install-comparison';
-        for (const [label, source] of [['Current', target.png], ['Proposed', png]]) {
-          const item = document.createElement('div'), title = document.createElement('h3'), image = document.createElement('img');
-          title.textContent = label; image.src = source; image.alt = `${label}: ${target.label}`;
-          item.append(title, image); comparison.append(item);
-        }
-        card.append(heading, comparison); return card;
-      });
-      $('mcp-previews').replaceChildren(...cards);
-      proposal = {captured, results};
-      status(`Review all ${results.length} proposed textures below. ${captured.note} Nothing has changed locally.`);
+      proposal = results.length ? {captured, results, failed} : null;
+      if (failed.length) $('mcp-apply').textContent = `Apply ${results.length} successful textures`;
+      status(`Review ${results.length} successful previews. ${failed.length ? `${failed.length} failed textures will remain unchanged. No failed request was retried. ` : ''}${captured.note} Nothing has changed locally.${failed.length ? '\n' + failed.map(({target, reason}) => `${target.label}: ${reason}`).join('\n') : ''}`, failed.length > 0);
     } catch (error) {
       discard();
       if (current === operation) status(`Generation stopped; no edits applied: ${error}`, true);
@@ -253,11 +282,11 @@ export function startMcp({invoke, snapshot, apply, toast}) {
   $('mcp-apply').addEventListener('click', async () => {
     if (busy || !proposal) return;
     busy = true; controls();
-    const {captured, results} = proposal;
+    const {captured, results, failed} = proposal;
     discard();
     try {
-      const warning = await apply(captured, results);
-      status(`Applied and saved ${results.length} textures to the local draft. Nothing was installed.${warning ? ` Installation is blocked: ${warning}` : ''}`, !!warning);
+      const warning = await apply(captured, results, failed.map(({target}) => target));
+      status(`Applied and saved ${results.length} textures to the local draft. ${failed.length ? `${failed.length} failed textures left unchanged. ` : ''}Nothing was installed.${warning ? ` Installation is blocked: ${warning}` : ''}`, !!warning);
       toast(warning ? `AI edits saved, but installation is blocked: ${warning}` : 'AI texture edits saved to the local draft. Nothing was installed.', !!warning);
     } catch (error) { status(String(error), true); }
     finally { busy = false; controls(); }

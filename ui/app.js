@@ -1451,11 +1451,14 @@ async function snapshotMcpDraft({sendOriginal = false} = {}) {
     note:skipped ? `${skipped} non-editable material slots are excluded.` : 'All editable draft textures are included.'};
 }
 
-async function applyMcpDraft(captured, results) {
+async function applyMcpDraft(captured, results, failedTargets = []) {
   if (draftSession !== captured.session || mcpDraftFingerprint() !== captured.fingerprint || draftSession?.deletionPromise) {
     throw new Error('The draft or attachments changed after generation. No edits applied; generate a new preview.');
   }
-  if (results.length !== captured.targets.length || results.some((result, index) => result.target !== captured.targets[index])) {
+  const accountedTargets = [...results.map(result => result.target), ...failedTargets];
+  if (!results.length || accountedTargets.length !== captured.targets.length
+      || new Set(accountedTargets).size !== accountedTargets.length
+      || accountedTargets.some(target => !captured.targets.includes(target))) {
     throw new Error('The MCP preview is incomplete. No edits applied.');
   }
   const nextEdits = new Map(edits), nextComponents = new Map(componentEdits);

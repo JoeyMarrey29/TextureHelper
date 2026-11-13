@@ -9,6 +9,7 @@ pub fn describe(provider: &str, value: &Value, fallback: &str) -> String {
         "moderation_blocked", "content_policy_violation", "content_filter",
         "content filter", "safety system", "safety_violations", "safety policy",
         "content policy", "responsibleaipolicyviolation", "content blocked",
+        "content_blocked", "content safety filters",
     ].iter().any(|marker| lower.contains(marker));
     let detail = clean(&detail);
     if blocked {
@@ -75,5 +76,16 @@ mod tests {
         assert!(error.contains("usageLimitExceeded"));
         assert!(describe("Codex", &Value::Null, "Generation failed.").contains("did not supply a reason"));
         assert!(describe("MCP", &json!("Blocked by content filters: violence"), "").contains("Content blocked"));
+    }
+
+    #[test]
+    fn recognizes_copilot_image_content_block_in_structured_and_wrapped_errors() {
+        let message = "image_generation_content_blocked: The image request was blocked by content safety filters. Do not retry automatically; the user can rephrase the prompt and try again.";
+        for value in [json!({"message":message,"type":"failure"}), json!(message),
+            json!({"code":"image_generation_content_blocked"})] {
+            let error = describe("GitHub Copilot",&value,"Generation failed.");
+            assert!(error.starts_with("Content blocked by GitHub Copilot."));
+            assert!(error.contains("image_generation_content_blocked"));
+        }
     }
 }

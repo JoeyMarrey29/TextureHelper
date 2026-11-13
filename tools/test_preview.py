@@ -67,6 +67,30 @@ window.previewTest = {
     window.pendingTextureRedraws=()=>callbacks.length;
   },
   sameDraftPreview, snapshotMcpDraft, applyMcpDraft, mcpDraftFingerprint,
+  async checkAiAmmunitionInclusion() {
+    const part=assembly.get(model.path),png=this.variantPng('#efab12');
+    const base=part.materials[0],mesh=part.meshes[0];
+    for (const [name,vtf] of [['casing_9mm','casing_9mm'],['shared_alias','casing_9mm']]) {
+      const material={...base,name,vmtPath:`materials/models/weapons/v_models/test/${name}.vmt`,
+        vtfPath:`materials/models/weapons/v_models/test/${vtf}.vtf`,image:png};
+      const index=part.materials.push(material)-1;part.meshes.push({...mesh,materialIndex:index});
+      const key=skinKey(material);
+      edits.set(key,{...material,key,partPath:part.path,png});
+      componentEdits.set(`${part.path}:${index}`,{...material,partPath:part.path,materialIndex:index,png});
+    }
+    const detached='materials/models/weapons/v_models/test/bullet_556.vmt';
+    const path='models/perpheads/weapons/attachments/ammo_556.mdl';
+    const detachedPart={...part,path,materials:[{...base,vmtPath:detached,vtfPath:detached.replace('.vmt','.vtf')}],
+      meshes:[{...mesh,materialIndex:0}]};
+    partCache.set(`${path}:idle`,Promise.resolve(detachedPart));
+    edits.set(detached,{key:detached,partPath:path,
+      vmtPath:detached,vtfPath:detached.replace('.vmt','.vtf'),png});
+    const included=captured=>['casing_9mm','shared_alias','bullet_556'].every(
+      name=>captured.targets.some(target=>target.label.includes(name)));
+    const uv=await snapshotMcpDraft(),original=await snapshotMcpDraft({sendOriginal:true});
+    return {uvIncluded:included(uv),originalIncluded:included(original),
+      uvReferences:uv.targets.every(target=>typeof target.referencePng==='string')};
+  },
   async setMcpAlphaSource() {
     const target=(await snapshotMcpDraft()).targets[0],layer=target.layers[0];
     const canvas=document.createElement('canvas');canvas.width=target.width;canvas.height=target.height;
@@ -436,18 +460,62 @@ with sync_playwright() as playwright:
         errors = []
         def check_content_block(provider):
             fingerprint = page.evaluate("previewTest.mcpDraftFingerprint()")
-            page.evaluate("draftMock.aiContentBlocked=true")
+            targets = page.evaluate("(async()=> (await previewTest.snapshotMcpDraft()).targets.length)()")
+            page.evaluate("draftMock.aiContentBlocked=true;draftMock.aiGenerationAttempt=0")
             before = page.evaluate("draftMock.calls.filter(command=>command.endsWith('_edit_texture')).length")
             page.locator("#mcp-generate").click()
-            page.wait_for_function("document.getElementById('mcp-status').textContent.includes('Content blocked by')")
+            page.wait_for_function("!document.getElementById('mcp-settings').disabled")
             message = page.locator("#mcp-status").inner_text()
             assert f"Content blocked by {provider}" in message
             assert "violence" in message and "output" in message
             assert page.locator("#mcp-apply").is_disabled()
-            assert page.locator("#mcp-previews section").count() == 0
+            assert page.locator("#mcp-previews img").count() == 0
             assert page.evaluate("previewTest.mcpDraftFingerprint()") == fingerprint
-            assert page.evaluate("draftMock.calls.filter(command=>command.endsWith('_edit_texture')).length") == before + 1
+            assert page.evaluate("draftMock.calls.filter(command=>command.endsWith('_edit_texture')).length") == before + targets
             page.evaluate("draftMock.aiContentBlocked=false")
+            page.evaluate("draftMock.aiBlockAt=2;draftMock.aiGenerationAttempt=0")
+            page.locator("#mcp-generate").click()
+            page.wait_for_function("!document.getElementById('mcp-settings').disabled")
+            assert not page.locator("#mcp-apply").is_disabled()
+            assert page.locator("#mcp-previews img").count() == (targets - 1) * 2
+            assert page.locator("#mcp-apply").inner_text() == f"Apply {targets - 1} successful textures"
+            assert page.evaluate("draftMock.aiGenerationAttempt") == targets
+            assert page.evaluate("previewTest.mcpDraftFingerprint()") == fingerprint
+            if provider == "MCP provider":
+                blocked = page.evaluate("""async () => {
+                    const target=(await previewTest.snapshotMcpDraft()).targets[1];
+                    return {label:target.label,png:target.png};
+                }""")
+                page.locator("#mcp-apply").click()
+                page.wait_for_function("document.getElementById('mcp-status').textContent.startsWith('Applied and saved')")
+                assert "1 failed textures left unchanged" in page.locator("#mcp-status").inner_text()
+                assert page.evaluate("""async blocked => (await previewTest.snapshotMcpDraft()).targets.find(
+                    target=>target.label===blocked.label).png===blocked.png""", blocked)
+            page.evaluate("delete draftMock.aiBlockAt")
+            page.evaluate("draftMock.aiDeferAt=2;draftMock.aiGenerationAttempt=0")
+            page.locator("#mcp-generate").click()
+            page.wait_for_function("!!draftMock.aiCardResolve")
+            assert page.locator('.ai-texture-card[data-state="Ready"]').count() == 1
+            assert page.locator('.ai-texture-card[data-state="Generating"] progress:not([value])').count() == 1
+            assert page.locator('.ai-texture-card[data-state="Queued"]').count() == targets - 2
+            assert page.locator("#mcp-apply").is_disabled()
+            if args.screenshot:
+                page.locator("#mcp-previews").screenshot(path=str(args.screenshot.with_name("ai-texture-progress-cards.png")))
+            page.evaluate("draftMock.aiCardResolve();delete draftMock.aiCardResolve;delete draftMock.aiDeferAt")
+            page.wait_for_function("!document.getElementById('mcp-settings').disabled")
+            assert page.locator('.ai-texture-card[data-state="Ready"] progress[value="1"]').count() == targets
+            for failure in ["network", "quota", "invalid image"]:
+                page.evaluate("failure=>{draftMock.aiFailAt=2;draftMock.aiFailure=failure;draftMock.aiGenerationAttempt=0;}", failure)
+                page.locator("#mcp-generate").click()
+                page.wait_for_function("!document.getElementById('mcp-settings').disabled")
+                assert page.evaluate("draftMock.aiGenerationAttempt") == targets
+                assert not page.locator("#mcp-apply").is_disabled()
+                assert page.locator("#mcp-previews img").count() == (targets - 1) * 2
+                assert page.locator('.ai-texture-card[data-state="Failed"]').count() == 1
+                assert page.locator('.ai-texture-card[data-state="Ready"]').count() == targets - 1
+                if failure != "invalid image":
+                    assert failure in page.locator("#mcp-status").inner_text()
+            page.evaluate("delete draftMock.aiFailAt;delete draftMock.aiFailure")
 
         def check_reference_modes(provider):
             field = provider + "Edits"
@@ -489,8 +557,21 @@ with sync_playwright() as playwright:
           };
           window.__TAURI__ = {core: {invoke: async (command, args) => {
             const mock = window.draftMock; mock.calls.push(command);
-            if (mock.aiContentBlocked && ['codex_edit_texture','copilot_edit_texture','openai_edit_texture','mcp_edit_texture'].includes(command)) {
+            const generationCommand=['codex_edit_texture','copilot_edit_texture','openai_edit_texture','mcp_edit_texture'].includes(command);
+            if(generationCommand) mock.aiGenerationAttempt=(mock.aiGenerationAttempt||0)+1;
+            if(generationCommand && mock.aiDeferAt===mock.aiGenerationAttempt) {
+              await new Promise(resolve=>{mock.aiCardResolve=resolve;});
+            }
+            if(generationCommand && mock.aiFailAt===mock.aiGenerationAttempt) {
+              if(mock.aiFailure==='invalid image') return command==='copilot_edit_texture'||command==='codex_edit_texture'
+                ? {png:'data:image/png;base64,invalid',originalPng:args.png} : 'data:image/png;base64,invalid';
+              throw Error(mock.aiFailure+' failure (fixture)');
+            }
+            if ((mock.aiContentBlocked || mock.aiBlockAt===mock.aiGenerationAttempt) && generationCommand) {
               const provider={codex:'ChatGPT / Codex',copilot:'GitHub Copilot',openai:'OpenAI API',mcp:'MCP provider'}[command.split('_')[0]];
+              if(command==='copilot_edit_texture' && mock.aiBlockAt) {
+                throw Error('Content blocked by GitHub Copilot. Provider reason: image_generation_content_blocked: The image request was blocked by content safety filters. Do not retry automatically; the user can rephrase the prompt and try again.; failure. No automatic retry was made.');
+              }
               throw Error(`Content blocked by ${provider}. Provider reason: Rejected by the safety system; moderation_blocked; output; violence. No automatic retry was made.`);
             }
             if (command === 'mcp_disconnect' || command === 'mcp_cancel_signin' || command === 'openai_disconnect' || command === 'copilot_disconnect' || command === 'codex_disconnect') return;
@@ -2396,12 +2477,13 @@ with sync_playwright() as playwright:
         assert page.evaluate("draftMock.calls.filter(command=>command.startsWith('install_')).length") == installs_before_mcp
         applied_mcp_state = page.evaluate("previewTest.mcpDraftFingerprint()")
         check_content_block("MCP provider")
+        applied_mcp_state = page.evaluate("previewTest.mcpDraftFingerprint()")
 
         page.evaluate("draftMock.mcpEdits=[];draftMock.mcpFailAt=2;draftMock.mcpColor='#cc8819'")
         page.locator("#mcp-generate").click()
         page.wait_for_function("document.getElementById('mcp-status').textContent.includes('Provider refused')")
-        assert page.locator("#mcp-previews section").count() == 0
-        assert page.locator("#mcp-apply").is_disabled()
+        assert page.locator("#mcp-previews img").count() == (expected_targets - 1) * 2
+        assert not page.locator("#mcp-apply").is_disabled()
         assert page.evaluate("previewTest.mcpDraftFingerprint()") == applied_mcp_state
 
         page.evaluate("delete draftMock.mcpFailAt;draftMock.mcpDefer=true;draftMock.mcpEdits=[]")
@@ -2502,6 +2584,9 @@ with sync_playwright() as playwright:
         page.evaluate("draftMock.componentConflict=false")
         print("PASS: MCP groups shared atlases, includes detached saved edits, preserves separate component sources, material scripts and attachment selections")
         print("PASS: MCP save failures retain local edits with retry instructions; generated UV conflicts explicitly block installation")
+        ammunition = page.evaluate("previewTest.checkAiAmmunitionInclusion()")
+        assert ammunition["uvIncluded"] and ammunition["originalIncluded"] and ammunition["uvReferences"]
+        print("PASS: eligible casing/ammunition textures and saved detached edits are included in both reference modes")
 
         if args.screenshot:
             for gun, sight, suffix in (("g36", "", "-g36"), ("m4a1", "", "-irons-up"), ("m4a1", "eotech", "-irons-down")):

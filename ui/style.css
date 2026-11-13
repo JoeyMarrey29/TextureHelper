@@ -20,6 +20,26 @@
 #mcp-dialog #mcp-status:empty{display:none}#mcp-dialog #mcp-status{padding:12px 14px;border:1px solid #3b4653;border-radius:9px;background:#202832;color:#bfcbd8;line-height:1.5}#mcp-dialog #mcp-status.error{background:#3a2527;border-color:#865049;color:#ffbaac}
 #mcp-dialog .ai-dialog-footer{position:sticky;bottom:-28px;margin:20px -28px -28px;padding:16px 28px;background:#191f27f5;border-top:1px solid #39434f;backdrop-filter:blur(8px);z-index:1}
 #mcp-dialog #mcp-previews section{padding:16px;border-radius:12px;background:#151b22;border-color:#39434f}#mcp-dialog .install-comparison h3{margin:12px 0 8px;color:#99a7b6;font-size:11px;font-weight:600}#mcp-dialog .install-comparison img{border-radius:8px}
+#mcp-previews{display:grid;gap:14px}
+#mcp-dialog .ai-texture-card{border:1px solid #39434f;box-shadow:0 6px 20px #0002;transition:border-color .2s,background .2s}
+.ai-texture-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.ai-texture-heading h3{margin:0;line-height:1.5}
+.ai-texture-badge{flex:none;padding:5px 9px;border-radius:20px;background:#303945;color:#bac6d5;font-size:10px;font-weight:700}
+.ai-texture-card progress{display:block;width:100%;height:6px;margin:14px 0 10px;border:0;border-radius:8px;overflow:hidden;accent-color:#ed856e;background:#303945}
+.ai-texture-card progress::-webkit-progress-bar{background:#303945;border-radius:8px}
+.ai-texture-card progress::-webkit-progress-value{background:#ed856e;border-radius:8px}
+.ai-texture-card progress:indeterminate{background:linear-gradient(90deg,#303945 15%,#ed856e 50%,#303945 85%);background-size:200% 100%;animation:ai-texture-loading 1.5s linear infinite}
+.ai-texture-card progress:indeterminate::-webkit-progress-bar{background:transparent}
+.ai-texture-detail{margin:0;color:#a6b3c2;font-size:11px;line-height:1.6;overflow-wrap:anywhere;white-space:pre-line}
+#mcp-dialog .ai-texture-card[data-state="Ready"]{border-color:#3a6455;background:linear-gradient(135deg,#192c26,#151b22)}
+.ai-texture-card[data-state="Ready"] .ai-texture-badge{background:#294f3d;color:#a6e2bd}
+.ai-texture-card[data-state="Ready"] progress::-webkit-progress-value{background:#77c49a}
+#mcp-dialog .ai-texture-card[data-state="Failed"]{border-color:#865049}
+.ai-texture-card[data-state="Failed"] .ai-texture-badge{background:#512d30;color:#ffbaac}
+.ai-texture-card[data-state="Failed"] progress::-webkit-progress-value{background:#c66c62}
+.ai-texture-card[data-state="Generating"] .ai-texture-badge,.ai-texture-card[data-state="Validating"] .ai-texture-badge{background:#523c32;color:#ffc6a4}
+@keyframes ai-texture-loading{to{background-position:-200% 0}}
+@media(prefers-reduced-motion:reduce){.ai-texture-card progress:indeterminate{animation:none}}
 @media(max-width:600px){#mcp-dialog{padding:18px}#mcp-dialog .ai-account{flex-wrap:wrap}#mcp-dialog .ai-account-badge{margin-left:56px}#mcp-dialog .ai-dialog-footer{bottom:-18px;margin:18px -18px -18px;padding:14px 18px}#mcp-dialog h2{font-size:20px}}
 #overwrite-skin-dialog .button-row{flex-wrap:wrap}#overwrite-skin-dialog .button-row .button{white-space:normal}
 .button-row+.upload{margin-top:8px}.toast{white-space:pre-line}

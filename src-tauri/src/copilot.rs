@@ -417,6 +417,10 @@ mod tests {
             "message":"Blocked by safety policy","moderation_details":{"categories":["violence"]}}})).unwrap_err();
         assert!(blocked.contains("Content blocked by GitHub Copilot"));
         assert!(blocked.contains("violence"));
+        let blocked = image_content(&serde_json::json!({"success":false,"error":{
+            "message":"image_generation_content_blocked: The image request was blocked by content safety filters. Do not retry automatically; the user can rephrase the prompt and try again.",
+            "type":"failure"}})).unwrap_err();
+        assert!(blocked.starts_with("Content blocked by GitHub Copilot."));
         assert!(image_content(&serde_json::json!({"success":true,"result":{"contents":[{"type":"image","mimeType":"image/jpeg","data":"test"}]}})).is_err());
     }
 
