@@ -980,11 +980,14 @@ pub struct ComponentMergeRequest {
 }
 
 fn component_merge_files(draft: &Draft, request: &ComponentMergeRequest, index: &ContentIndex, install: &Path) -> Result<Vec<SavedFile>, String> {
-    if !draft.archived_files.is_empty() || draft.component_textures.is_empty() {
-        return Err("Merge requires an editable draft with individual component assignments; flattened VTFs and backups can only replace the entire texture".into());
+    if !draft.archived_files.is_empty() {
+        return Err("UV-scoped installation requires an editable draft; backups can only replace the entire texture".into());
     }
     let mut groups = BTreeMap::<String, Vec<shared_texture::ComponentTexture>>::new();
     let mut found = std::collections::HashSet::new();
+    let component_assignments = draft.component_textures.iter()
+        .map(|component| format!("{}:{}", component.part_path, component.material_index))
+        .collect::<std::collections::HashSet<_>>();
     for component in &draft.component_textures {
         let component_key = format!("{}:{}", component.part_path, component.material_index);
         if request.component_keys.as_ref().is_some_and(|keys| !keys.contains(&component_key)) { continue; }
@@ -1008,12 +1011,36 @@ fn component_merge_files(draft: &Draft, request: &ComponentMergeRequest, index: 
         }
         groups.entry(vtf.clone()).or_default().push(source);
     }
+    // Shared edits are full atlases. Use only the UVs of the draft's edited model/material
+    // assignments, so unrelated pixels in that atlas cannot replace another installed skin.
+    for texture in &draft.textures {
+        let Some(vtf) = texture.vtf_path.as_ref() else { continue; };
+        if !request.vtf_paths.contains(vtf) || !is_skin_target_model(&texture.part_path) { continue; }
+        let detail = build_model(index, &texture.part_path)?;
+        for (material_index, material) in detail.materials.iter().enumerate() {
+            if material.vtf_path.as_ref() != Some(vtf) || texture.vmt_path.as_ref() != material.vmt_path.as_ref() { continue; }
+            let component_key = format!("{}:{material_index}", texture.part_path);
+            if request.component_keys.as_ref().is_some_and(|keys| !keys.contains(&component_key))
+                || component_assignments.contains(&component_key) || found.contains(&component_key) { continue; }
+            let mut source = shared_texture::ComponentTexture {part_path:texture.part_path.clone(),
+                material_index, png:texture.png.clone(), source_id:None};
+            if request.alpha_choices.get(vtf) == Some(&true) {
+                let mut image = textures::decode_texture(&png_bytes(&source.png)?)?.to_rgba8();
+                for pixel in image.pixels_mut() { pixel[3] = 255; }
+                let mut png = Cursor::new(Vec::new());
+                image.write_to(&mut png, ImageFormat::Png).map_err(|error| error.to_string())?;
+                source.png = format!("data:image/png;base64,{}", STANDARD.encode(png.into_inner()));
+            }
+            found.insert(component_key);
+            groups.entry(vtf.clone()).or_default().push(source);
+        }
+    }
     if request.component_keys.as_ref().is_some_and(|keys| keys.is_empty() || keys.iter().any(|key| !found.contains(key))) {
         return Err("The selected merge component changed or is no longer in this draft".into());
     }
     if groups.is_empty() { return Err("No changed component assignments are available to merge for these textures".into()); }
     if request.vtf_paths.iter().any(|vtf| !groups.contains_key(vtf)) {
-        return Err("Merge is only available for component-scoped textures. Install shared-only edits separately, or choose Replace entire texture.".into());
+        return Err("No UV-scoped model assignment is available for every selected texture. Choose Replace entire texture if that is intended.".into());
     }
     let mut files = Vec::new();
     for (vtf, components) in groups {
@@ -1046,7 +1073,13 @@ fn component_merge_files(draft: &Draft, request: &ComponentMergeRequest, index: 
                 if textures::texture_reference(&text)? != format!("materials/{relative}") {
                     return Err(format!("{} points to another VTF; merge cannot safely change this material mapping", target.display()));
                 }
-                files.push(SavedFile {bytes:STANDARD.encode(text.as_bytes()), ..expected});
+                // Keep an installed shader unless this draft explicitly changed its settings.
+                // A material-only edit still needs to install its new VMT in UV-scoped mode.
+                let source = material.vmt_text.as_deref().ok_or("Merge component has no original VMT")?;
+                let edited = texture.vmt_text.as_deref().ok_or("Merge component has no draft VMT")?;
+                if material_settings(source) == material_settings(edited) {
+                    files.push(SavedFile {bytes:STANDARD.encode(text.as_bytes()), ..expected});
+                } else { files.push(expected); }
             } else { files.push(expected); }
         }
     }
@@ -1067,11 +1100,16 @@ fn prepared_component_merge(root: &Path, request: &ComponentMergeRequest, index:
 #[tauri::command]
 pub async fn preview_component_merge(request: ComponentMergeRequest, app: tauri::AppHandle, state: State<'_, AppState>) -> Result<InstallReview, String> {
     let index = state.0.lock().map_err(|_| "Index lock failed")?.clone();
-    let install = index.install_root.clone().ok_or("Choose your Garry's Mod folder first")?;
+    let install = index.install_root.clone()
+        .or_else(|| rfd::FileDialog::new().set_title("Choose the garrysmod folder for installation").pick_folder())
+        .ok_or("Export cancelled")?;
     let root = storage(&app)?;
-    tauri::async_runtime::spawn_blocking(move || {
+    let destination = install.clone();
+    let review = tauri::async_runtime::spawn_blocking(move || {
         install_review(&prepared_component_merge(&root, &request, &index, &install)?, &index, &install)
-    }).await.map_err(|error| format!("Merge preview failed: {error}"))?
+    }).await.map_err(|error| format!("Merge preview failed: {error}"))??;
+    state.0.lock().map_err(|_| "Index lock failed")?.install_root = Some(destination);
+    Ok(review)
 }
 
 #[tauri::command]
@@ -1746,6 +1784,28 @@ mod tests {
         assert_eq!(image.dimensions(), (width * 2, height * 2));
         assert!(image.pixels().any(|pixel| pixel.0 == [210, 30, 50, 80]));
         assert!(image.pixels().any(|pixel| pixel.0 == [20, 90, 200, 40]));
+        let mut shared = old.clone();
+        shared.textures[0].png = make_png([210, 30, 50, 80], width, height);
+        let shared_files = component_merge_files(&shared, &request, &index, install.path()).unwrap();
+        let shared_vtf = shared_files.iter().find(|file| file.root == "vtf").unwrap();
+        let shared_image = textures::decode_texture(&STANDARD.decode(&shared_vtf.bytes).unwrap()).unwrap().to_rgba8();
+        assert!(shared_image.pixels().any(|pixel| pixel.0 == [210, 30, 50, 80]),
+            "The selected UVs must receive the full-atlas shared edit");
+        assert!(shared_image.pixels().any(|pixel| pixel.0 == [20, 90, 200, 40]),
+            "The full-atlas shared edit must preserve other installed UV regions");
+        let all_model_files = component_merge_files(&shared, &request, &full_index, install.path()).unwrap();
+        let paths_and_bytes = |files: &Vec<SavedFile>| files.iter()
+            .map(|file| (&file.root, &file.relative, &file.bytes)).map(|(root, relative, bytes)|
+                (root.clone(), relative.clone(), bytes.clone())).collect::<Vec<_>>();
+        assert_eq!(paths_and_bytes(&all_model_files), paths_and_bytes(&shared_files),
+            "Other indexed models using the atlas must not block a selected UV merge");
+        let original_vmt = shared.textures[0].vmt_text.as_deref().unwrap();
+        let close = original_vmt.rfind('}').unwrap();
+        shared.textures[0].vmt_text = Some(format!("{}\n$phong 0\n{}", &original_vmt[..close], &original_vmt[close..]));
+        let edited_files = component_merge_files(&shared, &request, &index, install.path()).unwrap();
+        let edited_vmt = edited_files.iter().find(|file| file.root == "vmt").unwrap();
+        assert!(String::from_utf8(STANDARD.decode(&edited_vmt.bytes).unwrap()).unwrap().contains("$phong 0"),
+            "UV-scoped installation must retain intentional VMT setting edits");
         let conflicts = install_conflicts(&merged, install.path()).unwrap();
         let approval = conflicts.into_iter().map(|conflict| (conflict.path, conflict.fingerprint)).collect();
         let mut alpha = request.clone();
@@ -1773,9 +1833,12 @@ mod tests {
         assert!(component_merge_files(&draft, &request, &index, install.path()).is_ok(), "Already identical overlapping pixels are safe");
         let mut changed = draft.clone();
         changed.component_textures[0].png = make_png([90, 200, 20, 255], width, height);
-        assert!(component_merge_files(&changed, &request, &index, install.path()).err().unwrap().contains("Merge blocked"));
+        let changed_files = component_merge_files(&changed, &request, &index, install.path()).unwrap();
+        assert!(install_affected_models(&changed_files, &index, install.path()).unwrap().0.contains(&alias.to_owned()),
+            "A model sharing selected UV pixels must appear in the install review");
         let flattened = shared_texture::flatten_draft(&index, &draft).unwrap();
-        assert!(component_merge_files(&flattened, &request, &index, install.path()).is_err());
+        assert!(component_merge_files(&flattened, &request, &index, install.path()).is_ok(),
+            "An editable shared atlas can still install only the selected model UVs");
         let name = save_and_install_merge(root.path(), &request.id, merged.clone(), install.path(), &BTreeMap::new()).unwrap();
         assert!(name.ends_with(" - merged installation"));
         let saved = fs::read_dir(root.path()).unwrap().map(|entry| entry.unwrap().path())

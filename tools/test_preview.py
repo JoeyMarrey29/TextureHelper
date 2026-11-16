@@ -813,7 +813,7 @@ with sync_playwright() as playwright:
             }
             if (command === 'preview_component_merge') {
               mock.lastMergePreview = structuredClone(args.request);
-              if (mock.failMerge) throw Error('Merge blocked: overlapping UV pixels conflict with another component');
+              if (mock.failMerge) throw Error('Merge blocked: selected component sources disagree on shared UV pixels');
               return structuredClone({conflicts:mock.mergeConflicts || [],affectedModels:mock.mergeAffectedModels || [],
                 warnings:mock.mergeImpactWarnings || []});
             }
@@ -1345,18 +1345,8 @@ with sync_playwright() as playwright:
             page.evaluate("previewTest.setView('front')")
             page.wait_for_timeout(600)
             page.screenshot(path=str(args.screenshot.with_stem(args.screenshot.stem + "-saved-draft")))
-        page.locator("#install-draft").click()
-        page.wait_for_function("draftMock.installed.size === 1")
-        page.wait_for_function("""id => document.querySelector('[data-draft-id="' + id + '"] .skin-status')
-            .textContent.endsWith('Installed')""", arg=draft_id)
         page.on("dialog", lambda dialog: dialog.accept())
-        page.locator("#uninstall-draft").click()
-        page.wait_for_function("draftMock.installed.size === 0")
-        page.wait_for_function("""id => document.querySelector('[data-draft-id="' + id + '"] .skin-status')
-            .textContent.endsWith('Not installed')""", arg=draft_id)
         assert page.evaluate("draftMock.saved.size") == 1
-        page.locator("#install-draft").click()
-        page.wait_for_function("draftMock.installed.size === 1")
         page.evaluate("draftMock.deferDelete=true")
         page.locator("#delete-draft").click()
         page.wait_for_function("typeof draftMock.resolveDelete==='function'")
@@ -1398,29 +1388,27 @@ with sync_playwright() as playwright:
         assert page.evaluate("draftMock.exports.length") == 0
         page.locator("#export-vtf").click()
         page.locator("#alpha-keep").click()
-        page.wait_for_function("draftMock.exports.length === 1")
-        assert not page.evaluate("draftMock.exports[0][0].stripAlpha")
-        assert page.evaluate("draftMock.exports[0][0].vmtPath").startswith("materials/models/jarheads/")
+        page.wait_for_function("draftMock.mergeInstalls === 1")
+        assert page.evaluate("Object.values(draftMock.lastMergeInstall.request.alphaChoices).every(value => value === false)")
         page.locator("#install-all").click()
         page.locator("#alpha-remove").click()
-        page.wait_for_function("draftMock.exports.length === 2 && previewTest.draftState().status.includes('Saved locally')")
-        assert page.evaluate("draftMock.exports[1][0].stripAlpha")
-        assert page.evaluate("draftMock.exports[1][0].pngBase64") == alpha_png
+        page.wait_for_function("draftMock.mergeInstalls === 2 && !document.getElementById('alpha-dialog').open")
+        assert page.evaluate("Object.values(draftMock.lastMergeInstall.request.alphaChoices).every(value => value === true)")
         copies_before = page.evaluate("draftMock.copies.length")
         page.locator("#copy-png").click()
         page.wait_for_function("count => draftMock.copies.length === count + 1", arg=copies_before)
         assert page.evaluate("draftMock.copies.at(-1)") == alpha_png
         assert page.evaluate("draftMock.copyAlphaChoices.at(-1)") is True
         print("PASS: original/edited texture copy requests opaque RGB, UV copy retains transparency, clipboard errors are visible")
-        page.wait_for_function("id => draftMock.saved.get(id).textures[0].stripAlpha === true", arg=alpha_id)
+        page.wait_for_function("id => draftMock.saved.has(id)", arg=alpha_id)
         assert page.evaluate("id => draftMock.saved.get(id).textures[0].png", alpha_id) == alpha_png
         page.evaluate("previewTest.showSkins()")
         row = page.locator(f'.skin-item[data-draft-id="{alpha_id}"]')
         page.locator("#install-draft").click()
         page.locator("#alpha-dialog").wait_for(state="visible")
-        assert page.locator("#alpha-remove").evaluate("button => button === document.activeElement")
+        assert page.locator("#alpha-keep").evaluate("button => button === document.activeElement")
         page.locator("#alpha-keep").click()
-        page.wait_for_function("id => draftMock.installed.has(id)", arg=alpha_id)
+        page.wait_for_function("draftMock.mergeInstalls === 3")
         assert not page.evaluate("id => draftMock.saved.get(id).textures[0].stripAlpha", alpha_id)
         assert page.evaluate("id => draftMock.saved.get(id).textures[0].png", alpha_id) == alpha_png
         assert not page.evaluate("""previewTest.supportedMaterial({
@@ -1438,11 +1426,9 @@ with sync_playwright() as playwright:
         page.wait_for_function("previewTest.draftState().status.includes('Saved locally')")
         page.locator("#install-all").click()
         page.locator("#alpha-remove").click()
-        page.wait_for_function("draftMock.exports.length === 3 && !document.getElementById('alpha-dialog').open")
-        shared_exports = page.evaluate("draftMock.exports[2]")
-        assert len(shared_exports) == 2
-        assert all(item["stripAlpha"] and item["pngBase64"] == shared_alpha_png for item in shared_exports)
-        assert len({item["materialPath"] for item in shared_exports}) == 1
+        page.wait_for_function("draftMock.mergeInstalls === 4 && !document.getElementById('alpha-dialog').open")
+        assert page.evaluate("draftMock.lastMergeInstall.request.componentKeys === null")
+        assert page.evaluate("Object.values(draftMock.lastMergeInstall.request.alphaChoices).every(value => value === true)")
         print("PASS: Jarheads installs, alpha Keep/Remove/Cancel on active/all/saved installs, original draft preservation, reticle exclusion")
         print("PASS: shared VTF installation asks once and applies the same alpha choice to both materials")
         page.evaluate("previewTest.showSkins()")
@@ -1454,7 +1440,7 @@ with sync_playwright() as playwright:
         exported = page.evaluate("draftMock.packageExports[0]")
         assert exported["command"] == "export_draft" and exported["id"] == share_id
         assert len(exported["draft"]["textures"]) == 2
-        assert all(texture["stripAlpha"] for texture in exported["draft"]["textures"])
+        assert all(not texture["stripAlpha"] for texture in exported["draft"]["textures"]), "UV-scoped install choices must not change the source draft"
         package_state = page.evaluate("previewTest.draftState()")
         installs_before_share = page.evaluate("draftMock.calls.filter(command => command === 'install_draft').length")
         page.evaluate("draftMock.cancelPackageExport = true")
@@ -1564,14 +1550,12 @@ with sync_playwright() as playwright:
 
         page.evaluate("previewTest.removeSharedOwnerEdit()")
         page.evaluate("previewTest.selectTexture('materials/models/weapons/v_models/test/shared.vtf')")
-        export_count = page.evaluate("draftMock.exports.length")
+        scoped_count = page.evaluate("draftMock.mergeInstalls")
         page.locator("#install-all").click()
         page.locator("#alpha-remove").click()
-        page.wait_for_function("count => draftMock.exports.length === count + 1", arg=export_count)
-        shared = page.evaluate("draftMock.exports.at(-1)")
-        assert len(shared) == 2, "Install all skipped a material that previewed an inherited shared edit"
-        assert len({texture["vmtPath"] for texture in shared}) == 2
-        assert len({texture["pngBase64"] for texture in shared}) == 1
+        page.wait_for_function("count => draftMock.mergeInstalls === count + 1", arg=scoped_count)
+        assert page.evaluate("draftMock.lastMergeInstall.request.componentKeys === null")
+        assert len(page.evaluate("draftMock.saved.get(previewTest.draftState().id).textures")) == 2, "Install all skipped a material that previewed an inherited shared edit"
         key = page.evaluate("previewTest.removeSharedOwnerEdit()")
         page.evaluate("previewTest.saveDraft()")
         assert page.evaluate("key => draftMock.saved.get(previewTest.draftState().id).textures.some(texture => texture.key === key)", key)
@@ -2022,70 +2006,71 @@ with sync_playwright() as playwright:
             path:'C:\\\\GMod\\\\addons\\\\skins\\\\materials\\\\test_custom.vtf',fingerprint:'reviewed-bytes',
             installedPng:previewTest.variantPng('#cc3333'),replacementPng:previewTest.variantPng('#3366aa')
           }];
+          draftMock.mergeConflicts=structuredClone(draftMock.installConflicts);
         }""")
-        installed_before = page.evaluate("draftMock.exports.length")
+        scoped_before = page.evaluate("draftMock.mergeInstalls || 0")
         page.locator("#export-vtf").click()
         page.locator("#overwrite-skin-dialog").wait_for(state="visible")
         assert page.locator("#cancel-skin-overwrite").evaluate("button=>button===document.activeElement")
         assert page.locator(".install-comparison img").count() == 2
         assert page.locator(".install-comparison img").evaluate_all("images=>images[0].src!==images[1].src")
         assert "Installed" in page.locator(".install-comparison h3").nth(0).inner_text()
-        assert "New" in page.locator(".install-comparison h3").nth(1).inner_text()
+        assert "Merged" in page.locator(".install-comparison h3").nth(1).inner_text()
         if args.screenshot:
             page.locator("#overwrite-skin-dialog").screenshot(path=str(args.screenshot.with_name("skin-overwrite-confirmation.png")))
         page.locator("#cancel-skin-overwrite").click()
-        assert page.evaluate("draftMock.exports.length") == installed_before
+        assert page.evaluate("draftMock.mergeInstalls || 0") == scoped_before
         page.locator("#export-vtf").click()
         page.locator('#overwrite-skin-dialog button[value="overwrite"]').click()
-        page.wait_for_function("count=>draftMock.exports.length===count+1",arg=installed_before)
-        assert page.evaluate("draftMock.lastInstallOverwrite[draftMock.installConflicts[0].path]") == "reviewed-bytes"
+        page.wait_for_function("count=>draftMock.mergeInstalls===count+1",arg=scoped_before)
+        assert page.evaluate("draftMock.lastMergeInstall.overwrite[draftMock.mergeConflicts[0].path]") == "reviewed-bytes"
         page.locator("#install-all").click()
         page.locator("#overwrite-skin-dialog").wait_for(state="visible")
         page.keyboard.press("Escape")
-        assert page.evaluate("draftMock.exports.length") == installed_before + 1
+        assert page.evaluate("draftMock.mergeInstalls") == scoped_before + 1
         page.evaluate("draftMock.failOverwrite=true")
         page.locator("#install-all").click()
         page.locator('#overwrite-skin-dialog button[value="overwrite"]').click()
         page.wait_for_function("document.getElementById('toast').textContent.includes('changed since confirmation')")
-        assert page.evaluate("draftMock.exports.length") == installed_before + 1
+        assert page.evaluate("draftMock.mergeInstalls") == scoped_before + 1
         page.evaluate("draftMock.failOverwrite=false")
         page.locator("#install-draft").click()
         page.locator("#overwrite-skin-dialog").wait_for(state="visible")
         page.locator('#overwrite-skin-dialog button[value="overwrite"]').click()
-        page.wait_for_function("draftMock.installed.has(previewTest.draftState().id)")
-        assert page.evaluate("draftMock.lastInstallPreview.id===previewTest.draftState().id")
-        assert page.evaluate("draftMock.lastInstallOverwrite[draftMock.installConflicts[0].path]") == "reviewed-bytes"
+        page.wait_for_function("count=>draftMock.mergeInstalls===count+2",arg=scoped_before)
+        assert page.evaluate("draftMock.lastMergePreview.id===previewTest.draftState().id")
         page.evaluate("draftMock.failInstallPreview=true")
         page.locator("#export-vtf").click()
+        page.locator("#merge-component-install").click()
         page.wait_for_function("document.getElementById('toast').textContent.includes('Could not read the installed skin')")
-        assert page.evaluate("draftMock.exports.length") == installed_before + 1
+        assert page.evaluate("draftMock.mergeInstalls") == scoped_before + 2
         page.evaluate("draftMock.failInstallPreview=false;draftMock.installConflicts=[]")
-        print("PASS: existing/new VTF comparison, default Cancel/Escape, explicit approvals for active/all/saved installs, changed-file refusal and preflight errors")
+        print("PASS: UV-scoped VTF comparison, Cancel/Escape, active/all/saved approval, changed-file refusal and full replacement preflight errors")
 
-        page.evaluate("draftMock.installAffectedModels=['models/perpheads/weapons/c_ak101.mdl']")
-        installed_before = page.evaluate("draftMock.exports.length")
+        page.evaluate("draftMock.mergeConflicts=[];draftMock.mergeAffectedModels=['models/perpheads/weapons/c_ak101.mdl']")
+        scoped_before = page.evaluate("draftMock.mergeInstalls || 0")
         page.locator("#export-vtf").click()
         page.locator("#overwrite-skin-dialog").wait_for(state="visible")
-        assert page.locator("#overwrite-skin-title").inner_text() == "Review skin installation"
+        assert page.locator("#overwrite-skin-title").inner_text() == "Review selected UV regions"
         assert page.locator("#skin-overwrite-warning").is_hidden()
         assert page.locator("#install-affected-models li").count() == 1
         assert page.locator("#install-affected-models li").get_attribute("title") == "models/perpheads/weapons/c_ak101.mdl"
-        assert page.locator("#confirm-skin-overwrite").inner_text() == "Install"
+        assert page.locator("#confirm-skin-overwrite").inner_text() == "Install selected UV regions"
         page.locator("#cancel-skin-overwrite").click()
-        assert page.evaluate("draftMock.exports.length") == installed_before
+        assert page.evaluate("draftMock.mergeInstalls || 0") == scoped_before
         page.locator("#export-vtf").click()
         page.locator("#confirm-skin-overwrite").click()
-        page.wait_for_function("count=>draftMock.exports.length===count+1",arg=installed_before)
-        assert page.evaluate("Object.keys(draftMock.lastInstallOverwrite).length") == 0
-        page.evaluate("draftMock.installAffectedModels=[]")
-        page.evaluate("draftMock.installImpactWarnings=['Could not determine effects for AK-101: installed VTF is unreadable']")
+        page.wait_for_function("count=>draftMock.mergeInstalls===count+1",arg=scoped_before)
+        assert page.evaluate("Object.keys(draftMock.lastMergeInstall.overwrite).length") == 0
+        page.evaluate("draftMock.mergeAffectedModels=[]")
+        page.evaluate("draftMock.mergeImpactWarnings=['Could not determine effects for AK-101: installed VTF is unreadable']")
         page.locator("#export-vtf").click()
         page.locator("#overwrite-skin-dialog").wait_for(state="visible")
         assert "could be confirmed" in page.locator("#install-affected-models").inner_text()
         assert "installed VTF is unreadable" in page.locator("#install-impact-warnings").inner_text()
         page.locator("#cancel-skin-overwrite").click()
-        page.evaluate("draftMock.installImpactWarnings=[]")
-        print("PASS: new installations review affected models without overwrite warnings; Cancel preserves files and Install accepts an empty overwrite set")
+        page.evaluate("draftMock.mergeImpactWarnings=[]")
+        print("PASS: UV-scoped installs review affected models without overwrite warnings; Cancel preserves files and Install accepts an empty overwrite set")
 
         page.evaluate("""async ()=>{
           await previewTest.open('models/perpheads/weapons/c_ak101.mdl');
@@ -2109,50 +2094,46 @@ with sync_playwright() as playwright:
           draftMock.mergeAffectedModels=['models/perpheads/weapons/c_ak101.mdl'];
         }""")
         sources_before = page.evaluate("previewTest.componentState().edits")
+        scoped_before = page.evaluate("draftMock.mergeInstalls || 0")
         page.locator("#export-vtf").click()
         page.locator("#merge-component-install").wait_for(state="visible")
-        assert page.locator("#install-affected-models li").count() == 2
-        page.locator("#merge-component-install").click()
-        page.wait_for_function("document.getElementById('overwrite-skin-title').textContent.includes('merged')")
-        assert page.locator("#merge-component-install").is_hidden()
         assert page.locator("#install-affected-models li").count() == 1
         assert "stock" not in page.locator("#install-affected-models").inner_text()
         assert "Merged" in page.locator(".install-comparison h3").nth(1).inner_text()
         assert page.evaluate("draftMock.lastMergePreview.componentKeys.length") == 1
         assert page.evaluate("draftMock.lastMergePreview.componentKeys[0].startsWith(previewTest.activePath()+':')")
         assert page.locator(".install-comparison img").nth(1).get_attribute("src") == page.evaluate("draftMock.mergeConflicts[0].replacementPng")
+        page.locator("#merge-component-install").click()
+        page.wait_for_function("document.getElementById('overwrite-skin-title').textContent.includes('Replace installed')")
+        assert page.locator("#install-affected-models li").count() == 2
+        assert "New" in page.locator(".install-comparison h3").nth(1).inner_text()
         if args.screenshot:
             page.locator("#overwrite-skin-dialog").screenshot(path=str(args.screenshot.with_name("skin-merge-confirmation.png")))
         page.locator("#cancel-skin-overwrite").click()
-        assert page.evaluate("draftMock.mergeInstalls||0") == 0
+        assert page.evaluate("draftMock.mergeInstalls || 0") == scoped_before
         page.locator("#export-vtf").click()
-        page.locator("#merge-component-install").click()
-        page.wait_for_function("document.getElementById('overwrite-skin-title').textContent.includes('merged')")
         page.locator("#confirm-skin-overwrite").click()
-        page.wait_for_function("draftMock.mergeInstalls===1")
+        page.wait_for_function("count=>draftMock.mergeInstalls===count+1",arg=scoped_before)
         page.wait_for_function("document.getElementById('toast').textContent.includes('Source drafts were kept unchanged')")
         assert page.evaluate("draftMock.lastMergeInstall.overwrite[draftMock.mergeConflicts[0].path]") == "reviewed-merged-atlas"
         assert page.evaluate("previewTest.componentState().edits") == sources_before
-        assert page.evaluate("draftMock.saved.get('merged-1').archivedFiles.length") == 1
+        assert page.evaluate("draftMock.saved.get('merged-'+draftMock.mergeInstalls).archivedFiles.length") == 1
         page.evaluate("draftMock.failMerge=true")
         page.locator("#export-vtf").click()
-        page.locator("#merge-component-install").click()
         page.wait_for_function("document.getElementById('toast').textContent.includes('Merge blocked')")
-        assert page.evaluate("draftMock.mergeInstalls") == 1
+        assert page.evaluate("draftMock.mergeInstalls") == scoped_before + 1
         page.evaluate("draftMock.failMerge=false")
         page.locator("#install-all").click()
-        page.locator("#merge-component-install").click()
-        page.wait_for_function("document.getElementById('overwrite-skin-title').textContent.includes('merged')")
+        page.locator("#overwrite-skin-dialog").wait_for(state="visible")
         assert page.evaluate("draftMock.lastMergePreview.componentKeys===null")
         page.locator("#confirm-skin-overwrite").click()
-        page.wait_for_function("draftMock.mergeInstalls===2")
+        page.wait_for_function("count=>draftMock.mergeInstalls===count+2",arg=scoped_before)
         page.locator("#install-draft").click()
-        page.locator("#merge-component-install").click()
-        page.wait_for_function("document.getElementById('overwrite-skin-title').textContent.includes('merged')")
+        page.locator("#overwrite-skin-dialog").wait_for(state="visible")
         page.locator("#confirm-skin-overwrite").click()
-        page.wait_for_function("draftMock.mergeInstalls===3")
+        page.wait_for_function("count=>draftMock.mergeInstalls===count+3",arg=scoped_before)
         page.evaluate("draftMock.installConflicts=[];draftMock.mergeConflicts=[];draftMock.installAffectedModels=[];draftMock.mergeAffectedModels=[]")
-        print("PASS: component merge option, merged-result review/cancel, scoped selection, protected-region errors, all/saved installs and unchanged component sources")
+        print("PASS: default UV-scoped install, explicit whole-atlas review, selected-source errors, all/saved installs and unchanged component sources")
 
         page.evaluate("""async () => {
           delete draftMock.componentFixture;delete draftMock.combinedPng;draftMock.componentConflict=false;

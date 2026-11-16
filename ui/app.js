@@ -1652,8 +1652,7 @@ async function restoreSavedSkin(draft) {
     const choices = await alphaInstallChoices(textures);
     if (!choices) return;
     const request = {id: draft.id, alphaChoices: Object.fromEntries(choices)};
-    const source = await invoke('load_draft', {id:draft.id});
-    const mergeRequest = source.componentTextures?.length ? {id:draft.id,
+    const mergeRequest = !draft.archived ? {id:draft.id,
       vtfPaths:[...new Set(textures.map(texture => texture.vtfPath))], componentKeys:null, alphaChoices:request.alphaChoices} : null;
     const confirmation = await confirmSkinInstall(request, mergeRequest);
     if (confirmation === null) return;
@@ -2047,17 +2046,22 @@ function applyAlphaChoices(choices) {
   }
 }
 async function confirmSkinInstall(request, mergeRequest = null, merged = false) {
+  if (mergeRequest && !merged) return confirmSkinInstall(request, mergeRequest, true);
   toast('Checking which models will change...');
   const {conflicts, affectedModels, warnings} = merged ? await invoke('preview_component_merge', {request:mergeRequest})
     : await invoke('preview_skin_install', request);
   if (!conflicts.length && !affectedModels.length && !warnings.length) return {overwrite:{}, mergeRequest:merged ? mergeRequest : null};
   const dialog = $('overwrite-skin-dialog'), list = $('overwrite-skin-files');
   if (dialog.open) throw new Error('Finish the current skin replacement confirmation first.');
-  $('overwrite-skin-title').textContent = merged ? 'Review merged component texture'
+  $('overwrite-skin-title').textContent = merged ? 'Review selected UV regions'
     : conflicts.length ? 'Replace installed skin?' : 'Review skin installation';
   $('skin-overwrite-warning').hidden = !conflicts.length;
-  $('merge-component-install').hidden = !mergeRequest || merged;
-  $('confirm-skin-overwrite').textContent = merged ? 'Merge and install' : conflicts.length ? 'Replace entire texture' : 'Install';
+  $('skin-overwrite-warning').textContent = merged
+    ? 'Installed pixels outside the selected UV regions are preserved. Models sharing selected UV pixels may also change; check the affected models below.'
+    : 'Different custom skin files are already installed at these paths. Continuing will overwrite them, including any components sharing the texture. Saved drafts and library textures are kept, but replaced game files are not automatically backed up.';
+  $('merge-component-install').hidden = !merged;
+  $('merge-component-install').textContent = 'Replace entire texture';
+  $('confirm-skin-overwrite').textContent = merged ? 'Install selected UV regions' : conflicts.length ? 'Replace entire texture' : 'Install';
   $('install-affected-title').textContent = `Models that will change (${affectedModels.length})`;
   const affected = $('install-affected-models');
   affected.replaceChildren();
@@ -2079,8 +2083,8 @@ async function confirmSkinInstall(request, mergeRequest = null, merged = false) 
     message.className = 'note'; message.textContent = `Warning: ${warning}`; warningList.append(message);
   }
   $('merge-install-note').textContent = merged
-    ? 'The right side now shows the merged result. Installed pixels outside the selected component UVs and existing VMT settings are preserved. Conflicting UV overlaps block merging. The result is saved as a separate installed skin for status, export and uninstall; source drafts stay unchanged.'
-    : 'Replace installs the entire new atlas. Merge component textures, when available, preserves other installed UV regions and material settings, then shows the merged result for confirmation. A merged result becomes a separate saved skin; source drafts stay unchanged. Flattened textures and backups cannot identify individual components.';
+    ? 'Only pixels used by the selected model parts will be installed. Pixels outside those UVs and unedited material settings are preserved. Models sharing the selected pixels can also change. Conflicting edits between selected components still block installation. The result is saved separately so it can be uninstalled or exported.'
+    : 'This replaces the entire atlas, including regions used by other skins.';
   list.replaceChildren();
   for (const conflict of conflicts) {
     const card = document.createElement('section'), path = document.createElement('p');
@@ -2116,7 +2120,7 @@ async function confirmSkinInstall(request, mergeRequest = null, merged = false) 
   list.replaceChildren();
   affected.replaceChildren();
   warningList.replaceChildren();
-  if (choice === 'merge' && mergeRequest && !merged) return confirmSkinInstall(request, mergeRequest, true);
+  if (choice === 'merge' && merged) return confirmSkinInstall(request, null, false);
   return choice === 'overwrite' ? {overwrite:Object.fromEntries(conflicts.map(conflict => [conflict.path, conflict.fingerprint])),
     mergeRequest:merged ? mergeRequest : null} : null;
 }
@@ -2136,9 +2140,10 @@ async function installEditedTextures(textures, componentOnly = false) {
     pngBase64: texture.png, stripAlpha: choices.get(texture.vtfPath),
   }))};
   const vtfPaths = [...new Set(textures.map(texture => texture.vtfPath))];
-  const mergeRequest = componentEdits.size ? {id:draftSession.id, vtfPaths,
-    componentKeys:componentOnly && componentMode ? [`${activePartPath}:${materialIndex}`] : null,
-    alphaChoices:Object.fromEntries(choices)} : null;
+  const mergeRequest = {id:draftSession.id, vtfPaths,
+    componentKeys:componentOnly ? editingTextureLayers()
+      .filter(layer => supportedMaterial(layer.material, layer.part.path)).map(uvLayerKey) : null,
+    alphaChoices:Object.fromEntries(choices)};
   const confirmation = await confirmSkinInstall(request, mergeRequest);
   if (confirmation === null) return;
   if (confirmation.mergeRequest) {

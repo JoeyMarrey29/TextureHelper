@@ -253,7 +253,7 @@ pub(super) fn flatten_draft(index: &ContentIndex, draft: &drafts::Draft) -> Resu
     Ok(output)
 }
 
-fn merge_regions(base: image::RgbaImage, layers: &[Layer], protected_uvs: &[Vec<f32>]) -> Result<image::RgbaImage, String> {
+fn merge_regions(base: image::RgbaImage, layers: &[Layer]) -> Result<image::RgbaImage, String> {
     if layers.is_empty() || layers.len() > 32 { return Err("Choose 1-32 component sources to merge".into()); }
     let (mut width, mut height) = base.dimensions();
     textures::validate_replacement_dimensions(width, height, width, height)?;
@@ -267,13 +267,8 @@ fn merge_regions(base: image::RgbaImage, layers: &[Layer], protected_uvs: &[Vec<
     }
     let mut output = if base.dimensions() == (width, height) { base }
         else { image::imageops::resize(&base, width, height, image::imageops::FilterType::Nearest) };
-    let count = width as usize * height as usize;
-    let mut protected = vec![0_u8; count];
     let mut work = 0;
-    for uvs in protected_uvs {
-        let mask = rasterize_with_budget(uvs, width, height, &mut work)?;
-        for (used, value) in protected.iter_mut().zip(mask) { *used |= value; }
-    }
+    let count = width as usize * height as usize;
     let mut owners = vec![false; count];
     let mut conflicts = 0;
     for layer in layers {
@@ -282,7 +277,7 @@ fn merge_regions(base: image::RgbaImage, layers: &[Layer], protected_uvs: &[Vec<
             if used == 0 { continue; }
             let (x, y) = (index as u32 % width, index as u32 / width);
             let pixel = *layer.pixels.get_pixel(x * layer.pixels.width() / width, y * layer.pixels.height() / height);
-            if (protected[index] != 0 || owners[index]) && *output.get_pixel(x, y) != pixel {
+            if owners[index] && *output.get_pixel(x, y) != pixel {
                 conflicts += 1;
             } else {
                 output.put_pixel(x, y, pixel);
@@ -291,7 +286,7 @@ fn merge_regions(base: image::RgbaImage, layers: &[Layer], protected_uvs: &[Vec<
         }
     }
     if conflicts > 0 {
-        return Err(format!("Merge blocked: {conflicts} UV pixels conflict with another component. The installed skin was not changed. Use compatible textures or explicitly replace the entire atlas."));
+        return Err(format!("Merge blocked: {conflicts} UV pixels have conflicting colours between the selected components. Choose compatible component textures or install them separately."));
     }
     // No padding: even neighbouring texels outside the selected UVs must retain the installed pixels.
     Ok(output)
@@ -315,31 +310,9 @@ pub(super) fn merge_components(index: &ContentIndex, vtf: &str, base: image::Rgb
         if uvs.is_empty() { return Err(format!("{} has no UV geometry to merge", component.part_path)); }
         layers.push(Layer {pixels, uvs});
     }
-    let mut protected = Vec::new();
-    let texture_re = Regex::new(r#"(?im)^\s*"?\$basetexture"?\s+(?:"([^"\r\n]+)"|([^"\s]+))"#).unwrap();
-    for (path, source) in index.files.iter().filter(|(path, _)| path.ends_with(".mdl") && is_skin_target_model(path)) {
-        let mdl = model::mdl::read_mdl_bytes(&source.read()?).map_err(|error| format!("Could not inspect {path}: {error}"))?;
-        let mut uses_vtf = false;
-        for texture in &mdl.textures {
-            let material = material_candidates(&texture.name, &mdl.cd_texture_paths).into_iter()
-                .find_map(|candidate| find(index, &candidate));
-            let Some(material) = material else { continue; };
-            let text = String::from_utf8(material.read()?).map_err(|error| error.to_string())?;
-            if texture_re.captures(&text).and_then(|capture| capture.get(1).or_else(|| capture.get(2)))
-                .is_some_and(|reference| key(&base_texture_path(reference.as_str())) == vtf) {
-                uses_vtf = true; break;
-            }
-        }
-        if !uses_vtf { continue; }
-        let detail = build_model(index, path)?;
-        for (material_index, material) in detail.materials.iter().enumerate() {
-            if material.vtf_path.as_deref() != Some(vtf) || selected.contains(&(key(path), material_index)) { continue; }
-            let uvs = detail.meshes.iter().filter(|mesh| mesh.material_index == material_index)
-                .flat_map(|mesh| mesh.uvs.iter().copied()).collect::<Vec<_>>();
-            if !uvs.is_empty() { protected.push(uvs); }
-        }
-    }
-    png(&merge_regions(base, &layers, &protected)?)
+    // Models that reuse these UV pixels will also see the selected edit. The install review
+    // reports those affected models; blocking them here would prevent legitimate atlas merges.
+    png(&merge_regions(base, &layers)?)
 }
 
 #[cfg(test)]
@@ -384,11 +357,11 @@ mod tests {
     }
 
     #[test]
-    fn install_merge_preserves_unselected_pixels_and_blocks_other_component_uv_conflicts() {
+    fn install_merge_preserves_unselected_pixels_and_blocks_selected_component_conflicts() {
         let base = image::RgbaImage::from_pixel(16, 8, image::Rgba([5, 6, 7, 42]));
         let incoming = Layer {pixels:image::RgbaImage::from_pixel(32, 16, image::Rgba([200, 30, 40, 0])),
             uvs:rectangle(0., 0.25)};
-        let merged = merge_regions(base.clone(), &[incoming], &[rectangle(0.75, 1.)]).unwrap();
+        let merged = merge_regions(base.clone(), &[incoming]).unwrap();
         assert_eq!(merged.dimensions(), (32, 16));
         for y in 0..16 {
             for x in 0..32 {
@@ -397,15 +370,17 @@ mod tests {
         }
         let overlapping = Layer {pixels:image::RgbaImage::from_pixel(32, 16, image::Rgba([200, 30, 40, 0])),
             uvs:rectangle(0., 0.75)};
-        assert!(merge_regions(base.clone(), &[overlapping], &[rectangle(0.5, 1.)]).unwrap_err().contains("Merge blocked"));
+        let merged = merge_regions(base.clone(), &[overlapping]).unwrap();
+        assert_eq!(merged.get_pixel(20, 8).0, [200, 30, 40, 0], "Selected UV pixels can be shared by other models");
+        assert_eq!(merged.get_pixel(28, 8).0, [5, 6, 7, 42], "Pixels outside selected UVs stay installed");
         let identical = layer([5, 6, 7, 42], rectangle(0., 1.));
-        assert_eq!(merge_regions(base.clone(), &[identical], &[rectangle(0., 1.)]).unwrap(), base);
+        assert_eq!(merge_regions(base.clone(), &[identical]).unwrap(), base);
         assert!(merge_regions(base.clone(), &[
             layer([200, 0, 0, 255], rectangle(0., 0.5)),
             layer([0, 200, 0, 255], rectangle(0., 0.5)),
-        ], &[]).is_err());
+        ]).is_err());
         let high = image::RgbaImage::from_pixel(64, 32, image::Rgba([9, 8, 7, 0]));
-        let result = merge_regions(high, &[layer([4, 3, 2, 1], rectangle(0., 0.25))], &[]).unwrap();
+        let result = merge_regions(high, &[layer([4, 3, 2, 1], rectangle(0., 0.25))]).unwrap();
         assert_eq!(result.dimensions(), (64, 32));
         assert_eq!(result.get_pixel(63, 31).0, [9, 8, 7, 0]);
     }
