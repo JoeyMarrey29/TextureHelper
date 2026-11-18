@@ -429,7 +429,14 @@ function highlightLayers(layers) {
   highlightedMaterial = layers.map(layer => ({path: layer.part.path, index: layer.index, colorIndex: uvColorIndex(layer)}));
   updateMaterialHighlight();
 }
-function skinTargetModel(path) { return /^models\/perpheads\/weapons\/(?:c_[^/]+|attachments\/[^/]+|magazines\/[^/]+)\.mdl$/i.test(path || ''); }
+function skinTargetModel(path) {
+  const modelPath = (path || '').toLowerCase();
+  if (!modelPath.endsWith('.mdl') || modelPath.includes('/weapons/components/')
+      || modelPath.includes('/weapons/casing/')) return false;
+  return modelPath.startsWith('models/perpheads/weapons/c_')
+    || modelPath.startsWith('models/perpheads/weapons/attachments/')
+    || modelPath.startsWith('models/perpheads/weapons/magazines/');
+}
 function skinMaterialPath(path) {
   return /^(materials\/models\/weapons\/v_models\/|materials\/models\/jarheads\/weapons\/)/.test(path || '')
     && !path.includes('reticles') && !/[\\:]/.test(path)
@@ -696,7 +703,8 @@ function renderList() {
   $('texture-count').textContent = textureVariants.length.toLocaleString();
   $('library-import-texture').classList.toggle('hidden', libraryView !== 'textures');
   $('texture-library-warnings').classList.toggle('hidden', libraryView !== 'textures' || !textureWarnings.length);
-  $('skin-count').textContent = (drafts.length + customSkins.filter(skin => !drafts.some(draft => draft.installedIds?.includes(skin.id))).length).toLocaleString();
+  $('skin-count').textContent = (drafts.filter(draft => !draft.hiddenMergedSnapshot).length
+    + customSkins.filter(skin => !drafts.some(draft => draft.installedIds?.includes(skin.id))).length).toLocaleString();
   $('category-filters').classList.toggle('hidden', libraryView !== 'models');
   $('compatibility-filter').classList.toggle('hidden', libraryView !== 'models');
   if (libraryView === 'skins') { renderCustomSkins(); return; }
@@ -1082,7 +1090,8 @@ function renderCategories() {
 
 function renderCustomSkins() {
   const query = $('search').value.trim().toLowerCase();
-  const saved = drafts.filter(draft => `${draft.name} ${draft.modelPath}`.toLowerCase().includes(query));
+  const saved = drafts.filter(draft => !draft.hiddenMergedSnapshot
+    && `${draft.name} ${draft.modelPath}`.toLowerCase().includes(query));
   const found = customSkins.filter(skin => !drafts.some(draft => draft.installedIds?.includes(skin.id))
     && `${skin.name} ${skin.vmtPath || ''} ${skin.vtfPath || ''}`.toLowerCase().includes(query));
   $('model-count').textContent = (found.length + saved.length).toLocaleString();
@@ -1188,12 +1197,31 @@ async function editInstalledSkin(skin) {
 
 async function refreshSkins() {
   [customSkins, drafts] = await Promise.all([invoke('list_custom_skins'), invoke('list_drafts')]);
+  linkMergedInstallations(drafts);
   try { await refreshTextureVariants(); }
   catch (error) { toast(`Texture library could not be refreshed: ${error}`, true); }
   renderTextureVariants();
   renderList();
   renderDraftActions();
   if (model) renderMaterials();
+}
+
+function linkMergedInstallations(items) {
+  const sources = items.filter(draft => !draft.archived);
+  for (const backup of items.filter(draft => draft.archived)) {
+    const source = sources.find(draft => draft.id === backup.mergedSourceId)
+      || (!backup.mergedSourceId && backup.name.endsWith(' - merged installation')
+        ? sources.find(draft => draft.name === backup.name.slice(0, -' - merged installation'.length)
+          && draft.modelPath === backup.modelPath) : null);
+    if (!source) continue;
+    backup.hiddenMergedSnapshot = true;
+    (source.mergedSnapshotIds ||= []).push(backup.id);
+    if (backup.installedCount && !source.mergedInstallId) {
+      source.mergedInstallId = backup.id;
+      source.installedCount = source.installableCount;
+      source.installedIds = [...new Set([...(source.installedIds || []), ...(backup.installedIds || [])])];
+    }
+  }
 }
 
 window.addEventListener('focus', () => {
@@ -1555,6 +1583,7 @@ function saveDraft() {
     }
     session.status = 'Saved locally · safe to close'; session.failed = false;
     drafts = await invoke('list_drafts');
+    linkMergedInstallations(drafts);
     renderList();
     renderDraftActions();
     if (draftSession === session) renderDraftStatus();
@@ -1631,7 +1660,8 @@ async function uninstallSavedDraft(draft) {
   if (!confirm(`Uninstall "${draft.name}" from Garry's Mod?\nThe saved skin and edits will be kept.`)) return;
   try {
     await saveDraft();
-    await invoke('uninstall_draft', {id: draft.id});
+    await invoke('uninstall_draft', {id: draft.mergedInstallId || draft.id});
+    if (draft.mergedInstallId) await invoke('delete_draft', {id: draft.mergedInstallId});
     await refreshSkins(); toast('Skin uninstalled. Your saved copy is still available.');
   } catch (error) { toast(String(error), true); }
 }
@@ -1649,6 +1679,7 @@ async function restoreSavedSkin(draft) {
     await saveDraft();
     const saved = await invoke('prepare_draft_output', {id: draft.id});
     const textures = saved.textures.filter(texture => supportedMaterial(texture, texture.partPath));
+    if (!textures.length) throw new Error('This saved draft has no supported editable textures to install.');
     const choices = await alphaInstallChoices(textures);
     if (!choices) return;
     const request = {id: draft.id, alphaChoices: Object.fromEntries(choices)};
@@ -1657,8 +1688,8 @@ async function restoreSavedSkin(draft) {
     const confirmation = await confirmSkinInstall(request, mergeRequest);
     if (confirmation === null) return;
     if (confirmation.mergeRequest) {
-      const name = await invoke('install_component_merge', {request:confirmation.mergeRequest, overwrite:confirmation.overwrite});
-      await refreshSkins(); toast(`Installed "${name}". Source drafts were kept unchanged.`);
+      await invoke('install_component_merge', {request:confirmation.mergeRequest, overwrite:confirmation.overwrite});
+      await refreshSkins(); toast(`Installed "${draft.name}".`);
     } else {
       await invoke('install_draft', {...request, overwrite:confirmation.overwrite});
       if (draftSession?.id === draft.id) applyAlphaChoices(choices);
@@ -1672,6 +1703,7 @@ async function deleteSavedDraft(draft) {
   const session = draftSession?.id === draft.id ? draftSession : null;
   const deletion = (async () => {
     await draftSaveQueue;
+    for (const backupId of draft.mergedSnapshotIds || []) await invoke('delete_draft', {id: backupId});
     await invoke('delete_draft', {id: draft.id});
     thumbnailCache.delete(`draft:${draft.id}:${draftThumbnailVersions.get(draft.id) || 0}`);
     draftThumbnailVersions.delete(draft.id);
@@ -2131,6 +2163,7 @@ async function installEditedTextures(textures, componentOnly = false) {
     await saveDraft();
     const output = await invoke('prepare_draft_output', {id:draftSession.id});
     textures = output.textures.filter(texture => paths.has(texture.vtfPath) && supportedMaterial(texture, texture.partPath));
+    if (!textures.length) throw new Error('No supported edited textures remain in this draft to install.');
   }
   const choices = await alphaInstallChoices(textures);
   if (!choices) return;
@@ -2147,8 +2180,8 @@ async function installEditedTextures(textures, componentOnly = false) {
   const confirmation = await confirmSkinInstall(request, mergeRequest);
   if (confirmation === null) return;
   if (confirmation.mergeRequest) {
-    const name = await invoke('install_component_merge', {request:confirmation.mergeRequest, overwrite:confirmation.overwrite});
-    installAvailable = true; await refreshSkins(); toast(`Installed "${name}". Source drafts were kept unchanged.`);
+    await invoke('install_component_merge', {request:confirmation.mergeRequest, overwrite:confirmation.overwrite});
+    installAvailable = true; await refreshSkins(); toast(`Installed "${draftSession.name}".`);
     return;
   }
   const count = await invoke('export_textures', {...request, overwrite:confirmation.overwrite});
@@ -2203,6 +2236,7 @@ async function scan(folder) {
     partCache.clear(); thumbnailCache.clear();
     models = result.models; customSkins = result.customSkins; contentScanned = true; installAvailable = result.hasInstallRoot; localStorage.setItem('contentFolder', folder); $('source-label').textContent = result.root;
     drafts = await invoke('list_drafts');
+    linkMergedInstallations(drafts);
     try { await refreshTextureVariants(); }
     catch (error) { toast(`Texture library could not be refreshed: ${error}`, true); }
     document.querySelector('.source-dot').classList.add('ready');

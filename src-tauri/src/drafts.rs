@@ -90,6 +90,7 @@ pub struct DraftSummary {
     archived: bool,
     installed_ids: Vec<String>,
     component_error: Option<String>,
+    merged_source_id: Option<String>,
 }
 
 pub(super) fn storage(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -336,6 +337,10 @@ fn editable_files_match(install: &Path, files: &[SavedFile]) -> Result<bool, Str
 
 fn summary(draft: &Draft, install: Option<&Path>) -> Result<DraftSummary, String> {
     let archived = !draft.archived_files.is_empty();
+    let merged_source_id = archived.then(|| draft.name.rsplit_once(" - merged installation [")
+        .and_then(|(_, suffix)| suffix.strip_suffix(']'))
+        .filter(|id| !id.is_empty() && id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-'))
+        .map(str::to_owned)).flatten();
     let (mut installed_count, mut installable_count) = (0, 0);
     let mut installed_ids = Vec::new();
     if archived {
@@ -360,7 +365,8 @@ fn summary(draft: &Draft, install: Option<&Path>) -> Result<DraftSummary, String
     }
     Ok(DraftSummary { id: draft.id.clone().ok_or("Draft has no ID")?, name: draft.name.clone(),
         model_path: draft.model_path.clone(), texture_count: draft.textures.len(),
-        installed_count, installable_count, archived, installed_ids, component_error:draft.component_error.clone() })
+        installed_count, installable_count, archived, installed_ids, component_error:draft.component_error.clone(),
+        merged_source_id })
 }
 
 #[tauri::command]
@@ -983,7 +989,11 @@ fn component_merge_files(draft: &Draft, request: &ComponentMergeRequest, index: 
     if !draft.archived_files.is_empty() {
         return Err("UV-scoped installation requires an editable draft; backups can only replace the entire texture".into());
     }
+    if request.vtf_paths.is_empty() {
+        return Err("No supported edited textures were selected for UV-scoped installation".into());
+    }
     let mut groups = BTreeMap::<String, Vec<shared_texture::ComponentTexture>>::new();
+    let mut unchanged_assignments = BTreeMap::<String, Vec<shared_texture::ComponentTexture>>::new();
     let mut found = std::collections::HashSet::new();
     let component_assignments = draft.component_textures.iter()
         .map(|component| format!("{}:{}", component.part_path, component.material_index))
@@ -1021,7 +1031,7 @@ fn component_merge_files(draft: &Draft, request: &ComponentMergeRequest, index: 
             if material.vtf_path.as_ref() != Some(vtf) || texture.vmt_path.as_ref() != material.vmt_path.as_ref() { continue; }
             let component_key = format!("{}:{material_index}", texture.part_path);
             if request.component_keys.as_ref().is_some_and(|keys| !keys.contains(&component_key))
-                || component_assignments.contains(&component_key) || found.contains(&component_key) { continue; }
+                || found.contains(&component_key) { continue; }
             let mut source = shared_texture::ComponentTexture {part_path:texture.part_path.clone(),
                 material_index, png:texture.png.clone(), source_id:None};
             if request.alpha_choices.get(vtf) == Some(&true) {
@@ -1031,8 +1041,20 @@ fn component_merge_files(draft: &Draft, request: &ComponentMergeRequest, index: 
                 image.write_to(&mut png, ImageFormat::Png).map_err(|error| error.to_string())?;
                 source.png = format!("data:image/png;base64,{}", STANDARD.encode(png.into_inner()));
             }
-            found.insert(component_key);
-            groups.entry(vtf.clone()).or_default().push(source);
+            if component_assignments.contains(&component_key) {
+                // An unchanged component source should not overwrite another installed skin.
+                // If nothing else was edited for this VTF, still allow the saved draft to
+                // restore its selected UVs (for example, to replace an installed custom skin).
+                unchanged_assignments.entry(vtf.clone()).or_default().push(source);
+            } else {
+                found.insert(component_key);
+                groups.entry(vtf.clone()).or_default().push(source);
+            }
+        }
+    }
+    if request.component_keys.is_none() {
+        for (vtf, sources) in unchanged_assignments {
+            groups.entry(vtf).or_insert(sources);
         }
     }
     if request.component_keys.as_ref().is_some_and(|keys| keys.is_empty() || keys.iter().any(|key| !found.contains(key))) {
@@ -1133,7 +1155,7 @@ fn save_and_install_merge(root: &Path, source_id: &str, files: Vec<SavedFile>, i
     }
     let mut snapshot = read_at(root, source_id)?;
     snapshot.id = None;
-    snapshot.name = format!("{} - merged installation", snapshot.name);
+    snapshot.name = format!("{} - merged installation [{source_id}]", snapshot.name);
     snapshot.textures.clear();
     snapshot.component_textures.clear();
     snapshot.component_error = None;
@@ -1754,6 +1776,16 @@ mod tests {
         let draft = save_at(root.path(), draft).unwrap();
         let request = ComponentMergeRequest {id:draft.id.clone().unwrap(), vtf_paths:vec![material.vtf_path.clone().unwrap()],
             component_keys:Some(vec![format!("{gun_path}:{gun_index}")]), alpha_choices:BTreeMap::new()};
+        let mut unchanged = old.clone();
+        unchanged.component_textures = vec![shared_texture::ComponentTexture {part_path:gun_path.into(),
+            material_index:gun_index, png:material.image.clone().unwrap(), source_id:None}];
+        let mut restore_request = request.clone();
+        restore_request.component_keys = None;
+        let restored = component_merge_files(&unchanged, &restore_request, &index, install.path()).unwrap();
+        let restored_vtf = restored.iter().find(|file| file.root == "vtf").unwrap();
+        let restored_image = textures::decode_texture(&STANDARD.decode(&restored_vtf.bytes).unwrap()).unwrap().to_rgba8();
+        assert!(restored_image.pixels().any(|pixel| pixel.0 == [20, 90, 200, 40]),
+            "Restoring an unchanged component must preserve installed pixels outside its UVs");
         let snapshot = fs::read(draft_path(root.path(), &request.id).unwrap()).unwrap();
         let before = installation_targets(&install_files(&old).unwrap(), install.path()).unwrap();
         let merged = prepared_component_merge(root.path(), &request, &index, install.path()).unwrap();
@@ -1840,7 +1872,7 @@ mod tests {
         assert!(component_merge_files(&flattened, &request, &index, install.path()).is_ok(),
             "An editable shared atlas can still install only the selected model UVs");
         let name = save_and_install_merge(root.path(), &request.id, merged.clone(), install.path(), &BTreeMap::new()).unwrap();
-        assert!(name.ends_with(" - merged installation"));
+        assert_eq!(name, format!("{} - merged installation [{}]", draft.name, draft.id.as_deref().unwrap()));
         let saved = fs::read_dir(root.path()).unwrap().map(|entry| entry.unwrap().path())
             .filter(|path| path.extension().is_some_and(|extension| extension == "json"))
             .find_map(|path| {
@@ -1848,6 +1880,9 @@ mod tests {
                 if saved.id != draft.id { Some(saved) } else { None }
             }).unwrap();
         assert!(saved.textures.is_empty() && saved.component_textures.is_empty());
+        assert_eq!(summary(&saved, Some(install.path())).unwrap().merged_source_id, draft.id);
+        assert!(!fs::read_to_string(draft_path(root.path(), saved.id.as_deref().unwrap()).unwrap())
+            .unwrap().contains("mergedSourceId"), "Saved backups must remain readable by earlier app versions");
         assert_eq!(summary(&saved, Some(install.path())).unwrap().installed_count, 1);
         assert_eq!(fs::read(draft_path(root.path(), &request.id).unwrap()).unwrap(), snapshot);
         assert!(package_bytes(saved.clone()).is_ok(), "Merged installation must export as a complete backup");

@@ -740,7 +740,7 @@ with sync_playwright() as playwright:
               id: draft.id, name: draft.name, modelPath: draft.modelPath, textureCount: draft.textures.length,
               installedCount: mock.installed.has(draft.id) ? (draft.archivedFiles?.length ? 1 : draft.textures.length) : 0,
               installableCount: draft.archivedFiles?.length ? 1 : draft.textures.length,
-              archived: !!draft.archivedFiles?.length, installedIds: []
+              archived: !!draft.archivedFiles?.length, installedIds: [], mergedSourceId:draft.mergedSourceId || null
             }));
             if (command === 'export_draft' || command === 'export_custom_skin') {
               if (mock.failPackageExport) throw Error('Simulated package export failure');
@@ -823,8 +823,11 @@ with sync_playwright() as playwright:
               mock.mergeInstalls = (mock.mergeInstalls || 0) + 1;
               const source=mock.saved.get(args.request.id);
               const merged={...structuredClone(source),id:'merged-'+mock.mergeInstalls,
-                name:source.name+' - merged installation',textures:[],componentTextures:[],
+                name:source.name+' - merged installation'+(mock.mergeInstalls <= 2 ? '' : ` [${source.id}]`),
+                textures:[],componentTextures:[],
+                mergedSourceId:mock.mergeInstalls <= 2 ? null : source.id,
                 archivedFiles:[{root:'vtf',relative:'merged_custom.vtf',bytes:'mock'}]};
+              for (const id of mock.installed) if (id.startsWith('merged-')) mock.installed.delete(id);
               mock.saved.set(merged.id,merged);mock.installed.add(merged.id);
               return merged.name;
             }
@@ -1404,6 +1407,9 @@ with sync_playwright() as playwright:
         assert page.evaluate("id => draftMock.saved.get(id).textures[0].png", alpha_id) == alpha_png
         page.evaluate("previewTest.showSkins()")
         row = page.locator(f'.skin-item[data-draft-id="{alpha_id}"]')
+        page.locator("#uninstall-draft").click()
+        page.wait_for_function("!draftMock.saved.has('merged-2')")
+        assert "Not installed" in row.inner_text()
         page.locator("#install-draft").click()
         page.locator("#alpha-dialog").wait_for(state="visible")
         assert page.locator("#alpha-keep").evaluate("button => button === document.activeElement")
@@ -1415,6 +1421,26 @@ with sync_playwright() as playwright:
           vmtPath:'materials/models/jarheads/weapons/attachments/rifle_sights/reticles/eotech.vmt',
           vtfPath:'materials/models/jarheads/weapons/attachments/rifle_sights/reticles/eotech.vtf'
         }, 'models/perpheads/weapons/attachments/rifle_eotech.mdl')""")
+        nested_model = 'models/perpheads/weapons/c_weapons/c_handcuffs.mdl'
+        nested_vtf = 'materials/models/jarheads/weapons/c_weapons/handcuffs/handcuffs.vtf'
+        assert page.evaluate("""([modelPath, vtfPath]) => previewTest.supportedMaterial({
+          vmtPath:vtfPath.replace(/[.]vtf$/, '.vmt'), vtfPath
+        }, modelPath)""", [nested_model, nested_vtf])
+        page.evaluate("""([sourceId, modelPath, vtfPath]) => {
+          const draft = structuredClone(draftMock.saved.get(sourceId));
+          draft.id = 'nested-model-install-test'; draft.modelPath = modelPath;
+          draft.textures = draft.textures.slice(0, 1).map(texture => ({...texture,
+            partPath:modelPath, vmtPath:vtfPath.replace(/[.]vtf$/, '.vmt'), vtfPath}));
+          draftMock.saved.set(draft.id, draft);
+          draftMock.mergeAffectedModels = [modelPath];
+          previewTest.restoreSavedSkin(draft);
+        }""", [alpha_id, nested_model, nested_vtf])
+        page.locator("#alpha-keep").click()
+        page.locator("#overwrite-skin-dialog").wait_for(state="visible")
+        assert page.evaluate("draftMock.lastMergePreview.vtfPaths") == [nested_vtf]
+        page.locator("#cancel-skin-overwrite").click()
+        page.evaluate("draftMock.mergeAffectedModels = []")
+        print("PASS: nested c_weapons saved draft reaches UV-scoped install review")
         page.evaluate("previewTest.open('models/perpheads/weapons/c_ak101.mdl')")
         page.evaluate("previewTest.setSlotAttachment('SLOT_STOCK', 'stock_ak101')")
         page.evaluate("previewTest.setupSharedTexture()")
@@ -2114,10 +2140,18 @@ with sync_playwright() as playwright:
         page.locator("#export-vtf").click()
         page.locator("#confirm-skin-overwrite").click()
         page.wait_for_function("count=>draftMock.mergeInstalls===count+1",arg=scoped_before)
-        page.wait_for_function("document.getElementById('toast').textContent.includes('Source drafts were kept unchanged')")
+        page.wait_for_function("document.getElementById('toast').textContent.includes('Installed')")
         assert page.evaluate("draftMock.lastMergeInstall.overwrite[draftMock.mergeConflicts[0].path]") == "reviewed-merged-atlas"
         assert page.evaluate("previewTest.componentState().edits") == sources_before
         assert page.evaluate("draftMock.saved.get('merged-'+draftMock.mergeInstalls).archivedFiles.length") == 1
+        page.evaluate("previewTest.showSkins()")
+        assert page.locator('.skin-item[data-draft-id^="merged-"]').count() == 0
+        merged_source_id = page.evaluate("draftMock.lastMergeInstall.request.id")
+        assert "Installed" in page.locator(f'.skin-item[data-draft-id="{merged_source_id}"]').inner_text()
+        assert "merged installation" not in page.locator("#model-list").inner_text()
+        page.evaluate("previewTest.saveDraft()")
+        assert page.locator('.skin-item[data-draft-id^="merged-"]').count() == 0
+        assert "Installed" in page.locator(f'.skin-item[data-draft-id="{merged_source_id}"]').inner_text()
         page.evaluate("draftMock.failMerge=true")
         page.locator("#export-vtf").click()
         page.wait_for_function("document.getElementById('toast').textContent.includes('Merge blocked')")
@@ -2128,6 +2162,9 @@ with sync_playwright() as playwright:
         assert page.evaluate("draftMock.lastMergePreview.componentKeys===null")
         page.locator("#confirm-skin-overwrite").click()
         page.wait_for_function("count=>draftMock.mergeInstalls===count+2",arg=scoped_before)
+        page.locator("#uninstall-draft").click()
+        page.wait_for_function("id => !draftMock.installed.has(id) && !document.getElementById('install-draft').hidden",
+                               arg=f'merged-{scoped_before + 2}')
         page.locator("#install-draft").click()
         page.locator("#overwrite-skin-dialog").wait_for(state="visible")
         page.locator("#confirm-skin-overwrite").click()
